@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Square, RotateCw, ExternalLink, FileText, 
   Globe, Radio, Music, DownloadCloud, 
   Server, Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
-  Laptop, Smartphone, Apple, Sparkles, Headphones, Eye, EyeOff
+  Laptop, Smartphone, Apple, Sparkles, Headphones, Eye, EyeOff,
+  ChevronDown, ChevronUp, Maximize2, Pause, SkipForward, SkipBack,
+  Volume2, VolumeX, Shuffle, Check, Compass
 } from 'lucide-react';
-import { AppStatus, ContainerInfo, SystemStats, StorageStatus } from '../types.js';
+import { AppStatus, ContainerInfo, SystemStats, StorageStatus, NowPlayingTrack } from '../types.js';
 import { useI18n } from '../i18n.js';
 
 interface DashboardProps {
@@ -226,6 +228,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const [scanMsg, setScanMsg] = useState<{ text: string; success: boolean } | null>(null);
   const [platformFilter, setPlatformFilter] = useState<'all' | 'desktop' | 'android' | 'ios' | 'web'>('all');
   const [showPassword, setShowPassword] = useState(false);
+  const [nowPlaying, setNowPlaying] = useState<NowPlayingTrack | null>(null);
+  const [isDirectPlaying, setIsDirectPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleTogglePlay = () => {
+    if (!audioRef.current) return;
+    if (isDirectPlaying) {
+      audioRef.current.pause();
+      setIsDirectPlaying(false);
+    } else {
+      if (nowPlaying?.streamUrl && audioRef.current.src !== window.location.origin + nowPlaying.streamUrl) {
+        audioRef.current.src = nowPlaying.streamUrl;
+      }
+      audioRef.current.play().then(() => {
+        setIsDirectPlaying(true);
+      }).catch(err => {
+        console.warn('Playback error:', err);
+      });
+    }
+  };
 
   // Modales
   const [logsModal, setLogsModal] = useState<{ open: boolean; containerName: string; logs: string }>({
@@ -272,6 +294,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     fetchData();
     const interval = setInterval(fetchData, 4000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Sincronización en vivo del reproductor (Feishin / OpenSubsonic)
+  useEffect(() => {
+    const fetchNowPlaying = async () => {
+      try {
+        const res = await fetch('/api/now-playing');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.active && data.track) {
+            setNowPlaying(data.track);
+          } else {
+            setNowPlaying(null);
+          }
+        }
+      } catch {
+        // Ignorar errores transitorios de red
+      }
+    };
+
+    fetchNowPlaying();
+    const npInterval = setInterval(fetchNowPlaying, 2500);
+    return () => clearInterval(npInterval);
   }, []);
 
   useEffect(() => {
@@ -397,14 +442,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const handleTriggerScan = async () => {
     setIsScanning(true);
     setScanMsg(null);
+    const startTime = Date.now();
     try {
       const res = await fetch('/api/navidrome/scan', { method: 'POST' });
       const data = await res.json();
+      await fetchData();
+      if (onRefreshStatus) onRefreshStatus();
+
+      const elapsed = Date.now() - startTime;
+      if (elapsed < 900) {
+        await new Promise(r => setTimeout(r, 900 - elapsed));
+      }
+
       if (data.success) {
-        setScanMsg({ text: t('syncSuccess'), success: true });
-        const sRes = await fetch('/api/storage');
-        const sData = await sRes.json();
-        setStorage(sData);
+        setScanMsg({ text: t('libraryUpdated'), success: true });
       } else {
         setScanMsg({ text: `Error: ${data.error || 'Failed to sync'}`, success: false });
       }
@@ -425,6 +476,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const hasPendingServices = containers.some(c => c.category !== 'connectivity' && c.state !== 'running');
   const isFeishinRunning = containers.find(c => c.name.includes('feishin'))?.state === 'running';
   const isNavidromeRunning = containers.find(c => c.name.includes('navidrome'))?.state === 'running';
+
+  const exploContainer = containers.find(c => c.name.includes('explo'));
+  const isExploInstalled = !!exploContainer && exploContainer.state !== 'not_created';
+  const isExploRunning = exploContainer?.state === 'running';
+
+  const slskdContainer = containers.find(c => c.name.includes('slskd'));
+  const isSlskdInstalled = !!slskdContainer && slskdContainer.state !== 'not_created';
+  const isSlskdRunning = slskdContainer?.state === 'running';
+
+  const getContainerUrl = (c?: ContainerInfo, fallbackPort = '80'): string => {
+    if (!c) return `http://${hostIp}:${fallbackPort}`;
+    if (c.webUiUrl) {
+      try {
+        const u = new URL(c.webUiUrl);
+        if (u.port) return `http://${hostIp}:${u.port}`;
+      } catch {
+        // continue
+      }
+    }
+    if (c.name.includes('slskd')) return `http://${hostIp}:5030`;
+    if (c.name.includes('explo')) return `http://${hostIp}:7288`;
+    if (c.name.includes('navidrome')) return `http://${hostIp}:${naviPort}`;
+    if (c.name.includes('feishin')) return `http://${hostIp}:${feishinPort}`;
+    if (c.name.includes('qbittorrent')) return `http://${hostIp}:8080`;
+    if (c.name.includes('prowlarr')) return `http://${hostIp}:9696`;
+    if (c.name.includes('lidarr')) return `http://${hostIp}:8686`;
+    if (c.name.includes('scrobbler')) return `http://${hostIp}:9078`;
+
+    if (c.ports && c.ports.length > 0) {
+      for (const p of c.ports) {
+        const first = String(p).split(':')[0];
+        const num = parseInt(first, 10);
+        if (!isNaN(num) && num > 0) return `http://${hostIp}:${num}`;
+      }
+    }
+    return `http://${hostIp}:${fallbackPort}`;
+  };
+
+  const slskdUrl = getContainerUrl(slskdContainer, '5030');
+  const exploUrl = getContainerUrl(exploContainer, '7288');
+
+  const openFeishinWindow = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!isFeishinRunning) return;
+    const w = window.open(feishinUrl, 'hostify_feishin_player');
+    if (w) w.focus();
+  };
+
+  const openExploWindow = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!isExploRunning) return;
+    const w = window.open(exploUrl, 'hostify_explo');
+    if (w) w.focus();
+  };
+
+  const openSlskdWindow = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!isSlskdRunning) return;
+    const w = window.open(slskdUrl, 'hostify_slskd');
+    if (w) w.focus();
+  };
 
   return (
     <div className="container" style={{ paddingBottom: '60px' }}>
@@ -482,16 +594,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
             </button>
           )}
 
-          <button 
-            id="btn-refresh-dashboard"
-            className="btn btn-secondary btn-sm" 
-            onClick={fetchData} 
-            disabled={loading}
-            title={t('refresh')}
-          >
-            <RefreshCw size={12} className={loading ? 'pulsing' : ''} />
-            <span>{t('refresh')}</span>
-          </button>
         </div>
       </div>
 
@@ -542,7 +644,237 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
       {/* PESTAÑA 1: ESCUCHAR (Directo, amplio, sin sobrecarga) */}
       {activeTab === 'listen' && (
         <div style={{ maxWidth: '820px' }}>
-          <div style={{ marginBottom: '24px' }}>
+          {/* Barra de Controles Rápidos de Reproducción (Flat & Minimalist) */}
+          {isFeishinRunning && (
+            <div className="compact-player-bar">
+              <div className="compact-player-track">
+                <div className="compact-player-thumb">
+                  {nowPlaying?.coverArtUrl ? (
+                    <img src={nowPlaying.coverArtUrl} alt={nowPlaying.album || 'Cover'} />
+                  ) : (
+                    <Disc3 size={20} className={nowPlaying ? 'spin' : ''} />
+                  )}
+                </div>
+                <div className="compact-player-meta">
+                  <div className="compact-player-title" title={nowPlaying ? nowPlaying.title : t('compactPlayerReady')}>
+                    {nowPlaying ? nowPlaying.title : t('compactPlayerReady')}
+                  </div>
+                  <div className="compact-player-artist">
+                    {nowPlaying ? (
+                      <>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{nowPlaying.artist}</span>
+                        {nowPlaying.album && <span> • {nowPlaying.album}</span>}
+                        {nowPlaying.playerName && (
+                          <span style={{ color: 'var(--accent-brass)', marginLeft: '6px', fontSize: '0.7rem' }}>
+                            ({t('compactPlayerFrom')} {nowPlaying.playerName})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      t('compactPlayerHint')
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="compact-player-controls">
+                <button
+                  type="button"
+                  onClick={handleTogglePlay}
+                  className="compact-control-btn play-btn"
+                  title={isDirectPlaying ? t('compactPlayerPause') : t('compactPlayerPlay')}
+                >
+                  {isDirectPlaying ? (
+                    <Pause size={15} fill="currentColor" />
+                  ) : (
+                    <Play size={15} fill="currentColor" style={{ marginLeft: '2px' }} />
+                  )}
+                </button>
+              </div>
+
+              <div className="compact-player-actions">
+                <a
+                  href={feishinUrl}
+                  target="hostify_feishin_player"
+                  rel="noreferrer"
+                  onClick={openFeishinWindow}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.74rem', padding: '3px 10px' }}
+                  title={t('compactPlayerLaunch')}
+                >
+                  <ExternalLink size={12} />
+                  <span>{t('compactPlayerLaunch')}</span>
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Widget de Métricas de Fonoteca & Curador Explo */}
+          <div className="library-curator-widget">
+            {/* Tarjeta 1: Canciones en Biblioteca */}
+            <div className="library-stat-card">
+              <div>
+                <div className="library-stat-header">
+                  <span className="library-stat-title">
+                    <Music size={14} style={{ color: 'var(--accent-brass)' }} />
+                    <span>{t('totalTracksLabel')}</span>
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {scanMsg && (
+                      <span style={{
+                        fontSize: '0.74rem',
+                        color: scanMsg.success ? 'var(--status-online-text)' : 'var(--status-err-text)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}>
+                        {scanMsg.success && <Check size={11} />}
+                        <span>{scanMsg.text}</span>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                      onClick={handleTriggerScan}
+                      disabled={isScanning}
+                      title={t('syncLibraryShort')}
+                    >
+                      <RefreshCw size={11} className={isScanning ? 'spin' : ''} />
+                      <span>{isScanning ? t('syncing') : t('syncLibraryShort')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="library-stat-main">
+                  <span className="library-stat-number">
+                    {storage?.totalTrackCount !== undefined ? storage.totalTrackCount.toLocaleString() : '0'}
+                  </span>
+                  <span className="library-stat-unit">{t('tracksCount')}</span>
+                </div>
+
+                <p style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                  {t('totalTracksHint')} {storage?.folders?.music?.sizeHuman ? `• ${storage.folders.music.sizeHuman}` : ''}
+                </p>
+              </div>
+
+              <div className="library-breakdown-pills">
+                <span className="breakdown-pill" title="/music/personal">
+                  <strong>{storage?.folders?.personal?.fileCount ?? 0}</strong> {t('sourcePersonal')}
+                </span>
+                <span className="breakdown-pill" title="/music/slskd">
+                  <strong>{storage?.folders?.slskd?.fileCount ?? 0}</strong> {t('sourceSlskd')}
+                </span>
+                <span className="breakdown-pill" title="/music/explo">
+                  <strong>{storage?.folders?.explo?.fileCount ?? 0}</strong> {t('sourceExplo')}
+                </span>
+                <span className="breakdown-pill" title="/music/torrents">
+                  <strong>{storage?.folders?.torrents?.fileCount ?? 0}</strong> {t('sourceTorrents')}
+                </span>
+              </div>
+            </div>
+
+            {/* Tarjeta 2: Slskd (Soulseek P2P) o Explo si Slskd no está instalado */}
+            {isSlskdInstalled ? (
+              <div className="curator-card">
+                <div className="curator-card-bg-glow" />
+                <div>
+                  <div className="library-stat-header">
+                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
+                      <DownloadCloud size={14} style={{ color: 'var(--accent-brass)' }} />
+                      <span>{t('slskdWidgetTitle')}</span>
+                    </span>
+                    <span className={`status-pill ${isSlskdRunning ? 'online' : 'offline'}`}>
+                      <span className="status-dot"></span>
+                      <span>{isSlskdRunning ? t('online') : t('offline')}</span>
+                    </span>
+                  </div>
+
+                  <p className="curator-desc">
+                    {t('slskdWidgetDesc')}
+                  </p>
+                </div>
+
+                <div className="curator-actions">
+                  {isSlskdRunning ? (
+                    <a
+                      href={slskdUrl}
+                      target="hostify_slskd"
+                      rel="noreferrer"
+                      onClick={openSlskdWindow}
+                      className="btn btn-primary btn-sm"
+                      id="btn-open-slskd"
+                    >
+                      <DownloadCloud size={13} />
+                      <span>{t('openSlskdBtn')}</span>
+                      <ExternalLink size={11} style={{ opacity: 0.7 }} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleAction(slskdContainer?.name || 'hostify-slskd', 'start')}
+                      disabled={!status?.dockerAvailable}
+                      id="btn-start-slskd"
+                    >
+                      <Play size={12} />
+                      <span>{t('startSlskdBtn')}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : isExploInstalled ? (
+              <div className="curator-card">
+                <div className="curator-card-bg-glow" />
+                <div>
+                  <div className="library-stat-header">
+                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
+                      <Sparkles size={14} style={{ color: 'var(--accent-brass)' }} />
+                      <span>{t('exploWidgetTitle')}</span>
+                    </span>
+                    <span className={`status-pill ${isExploRunning ? 'online' : 'offline'}`}>
+                      <span className="status-dot"></span>
+                      <span>{isExploRunning ? t('online') : t('offline')}</span>
+                    </span>
+                  </div>
+
+                  <p className="curator-desc">
+                    {t('exploWidgetDesc')}
+                  </p>
+                </div>
+
+                <div className="curator-actions">
+                  {isExploRunning ? (
+                    <a
+                      href={exploUrl}
+                      target="hostify_explo"
+                      rel="noreferrer"
+                      onClick={openExploWindow}
+                      className="btn btn-primary btn-sm"
+                      id="btn-open-explo"
+                    >
+                      <Compass size={13} />
+                      <span>{t('openExploBtn')}</span>
+                      <ExternalLink size={11} style={{ opacity: 0.7 }} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleAction(exploContainer?.name || 'hostify-explo', 'start')}
+                      disabled={!status?.dockerAvailable}
+                      id="btn-start-explo"
+                    >
+                      <Play size={12} />
+                      <span>{t('startExploBtn')}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)' }}>
               {t('webRoomsTitle')}
             </h2>
@@ -572,9 +904,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               <div>
                 <a
                   href={isFeishinRunning ? feishinUrl : '#'}
-                  target={isFeishinRunning ? "_blank" : undefined}
+                  target={isFeishinRunning ? "hostify_feishin_player" : undefined}
                   rel="noreferrer"
-                  onClick={!isFeishinRunning ? (e) => e.preventDefault() : undefined}
+                  onClick={isFeishinRunning ? openFeishinWindow : (e) => e.preventDefault()}
                   className="btn btn-primary btn-sm"
                   style={!isFeishinRunning ? { opacity: 0.4, cursor: 'not-allowed' } : {}}
                 >
@@ -745,6 +1077,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                       )}
 
                       <div style={{ display: 'flex', gap: '4px' }}>
+                        {isRunning && c.ports.length > 0 && (
+                          <a
+                            href={getContainerUrl(c)}
+                            target={c.name.includes('feishin') ? 'hostify_feishin_player' : c.name.includes('slskd') ? 'hostify_slskd' : c.name.includes('explo') ? 'hostify_explo' : `hostify_${c.name}`}
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            title={t('openWebUI')}
+                          >
+                            <ExternalLink size={11} />
+                          </a>
+                        )}
                         {isRunning ? (
                           <button 
                             className="btn btn-secondary btn-sm" 
@@ -805,6 +1148,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           </div>
 
           <div className="flat-list" style={{ marginBottom: '28px' }}>
+            <div className="flat-row">
+              <div className="flat-row-info">
+                <Folder size={18} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
+                <div>
+                  <div className="flat-row-title">{t('folderPersonalTitle')}</div>
+                  <p className="flat-row-desc">{t('folderPersonalDesc')}</p>
+                </div>
+              </div>
+              <span style={{ fontSize: '0.84rem', fontWeight: '600' }}>
+                {storage?.folders?.personal?.fileCount ?? 0} {t('tracksCount')}
+              </span>
+            </div>
+
             <div className="flat-row">
               <div className="flat-row-info">
                 <Sparkles size={18} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
@@ -941,8 +1297,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                     <div>
                       <a
                         href={targetUrl}
-                        target="_blank"
+                        target={isWebFeishin ? "hostify_feishin_player" : "_blank"}
                         rel="noreferrer"
+                        onClick={isWebFeishin ? openFeishinWindow : undefined}
                         className="btn btn-secondary btn-sm"
                       >
                         <ExternalLink size={12} />
@@ -1094,6 +1451,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           </div>
         </div>
       )}
+
+      <audio
+        ref={audioRef}
+        onEnded={() => setIsDirectPlaying(false)}
+        onPause={() => setIsDirectPlaying(false)}
+        onPlay={() => setIsDirectPlaying(true)}
+      />
     </div>
   );
 };

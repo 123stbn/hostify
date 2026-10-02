@@ -55,6 +55,17 @@ export const App: React.FC = () => {
   const handleWizardComplete = () => {
     fetchStatus();
     setView('dashboard');
+
+    // Abre Feishin en una nueva pestaña para que el usuario conozca de inmediato su reproductor
+    try {
+      const port = status?.feishinPort || '9188';
+      const host = window.location.hostname || status?.hostIp || '127.0.0.1';
+      const feishinUrl = `http://${host}:${port}`;
+      const w = window.open(feishinUrl, 'hostify_feishin_player');
+      if (w) w.focus();
+    } catch (e) {
+      console.warn('Could not auto-open Feishin tab:', e);
+    }
   };
 
   if (loading) {
@@ -79,7 +90,11 @@ export const App: React.FC = () => {
 
       <main style={{ flex: 1 }}>
         {view === 'wizard' ? (
-          <SetupWizard status={status} onComplete={handleWizardComplete} />
+          <SetupWizard 
+            status={status} 
+            onComplete={handleWizardComplete} 
+            onCancel={() => setView('dashboard')}
+          />
         ) : (
           <Dashboard status={status} onRefreshStatus={fetchStatus} />
         )}

@@ -3,7 +3,8 @@ import {
   HardDrive, Music, Radio, Shield, Globe,
   ArrowRight, ArrowLeft, Check, AlertCircle,
   Layers, DownloadCloud, CheckCircle2, Server, FolderSearch,
-  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles
+  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles,
+  LayoutDashboard
 } from 'lucide-react';
 import { AppStatus } from '../types.js';
 import { DirectoryPickerModal } from './DirectoryPickerModal.js';
@@ -85,9 +86,10 @@ const TIMEZONE_GROUPS = [
 interface SetupWizardProps {
   status: AppStatus | null;
   onComplete: () => void;
+  onCancel?: () => void;
 }
 
-export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete }) => {
+export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, onCancel }) => {
   const { lang, t } = useI18n();
   const isEn = lang === 'en';
   const draft = loadWizardDraft();
@@ -480,13 +482,28 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete }) 
       )}
 
       {/* Cabecera */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.45rem', fontWeight: '700', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-          {t('wizardTitle')}
-        </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', marginTop: '3px' }}>
-          {t('wizardProgress', { current: currentStep })}
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
+        <div>
+          <h1 style={{ fontSize: '1.45rem', fontWeight: '700', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            {t('wizardTitle')}
+          </h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.86rem', marginTop: '3px' }}>
+            {t('wizardProgress', { current: currentStep })}
+          </p>
+        </div>
+
+        {status?.isConfigured && onCancel && (
+          <button
+            type="button"
+            id="btn-wizard-exit"
+            className="btn btn-secondary btn-sm"
+            onClick={onCancel}
+            title={t('backToDashboard')}
+          >
+            <LayoutDashboard size={13} />
+            <span>{t('backToDashboard')}</span>
+          </button>
+        )}
       </div>
 
       {/* Indicadores de Paso (Línea simple, sin cajas) */}
@@ -551,6 +568,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete }) 
               <p className="input-hint">
                 {t('step1MusicHint')}
               </p>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/personal</strong> • {isEn ? 'Manual uploads' : 'Subidas manuales'}</span>
+                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/explo</strong> • {isEn ? 'Curator' : 'Curador'}</span>
+                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/slskd</strong> • Soulseek</span>
+                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/torrents</strong> • Torrents</span>
+              </div>
             </div>
 
             <div className="form-group">
@@ -962,7 +985,18 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete }) 
             <ArrowLeft size={13} />
             <span>{t('back')}</span>
           </button>
-        ) : <div></div>}
+        ) : (
+          status?.isConfigured && onCancel ? (
+            <button
+              id="btn-wizard-cancel"
+              className="btn btn-secondary btn-sm"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              <span>{t('cancelWizard')}</span>
+            </button>
+          ) : <div></div>
+        )}
 
         {currentStep < 5 ? (
           <button

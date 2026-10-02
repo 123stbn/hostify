@@ -26,6 +26,8 @@ To preserve metadata integrity and prevent half-downloaded tracks from breaking 
 
 ```text
 /volume1/music/                          <-- Mounted into Navidrome (/music:ro)
+├── personal/                            <-- Personal collection & manual uploads (CD/vinyl rips, own files)
+│   └── Artist/Album/track.flac
 ├── explo/                               <-- Dedicated to smart curator downloads (Explo)
 │   └── Artist/Album/track.flac
 ├── slskd/                               <-- Dedicated to Soulseek P2P (Slskd)

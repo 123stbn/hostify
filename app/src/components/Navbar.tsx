@@ -50,31 +50,31 @@ export const Navbar: React.FC<NavbarProps> = ({ status, onOpenSettings, onResetW
             <span>{lang.toUpperCase()}</span>
           </button>
 
-          {activeView === 'dashboard' && (
-            <>
-              <button 
-                id="btn-reconfig-wizard"
+          {activeView === 'dashboard' ? (
+            <button 
+              id="btn-reconfig-wizard"
+              className="btn btn-secondary btn-sm"
+              onClick={isDockerAvailable ? onResetWizard : undefined}
+              disabled={!isDockerAvailable}
+              title={isDockerAvailable 
+                ? t('runWizardTooltip') 
+                : t('engineStopped')}
+              style={!isDockerAvailable ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
+            >
+              <RefreshCw size={12} />
+              <span>{t('runWizard')}</span>
+            </button>
+          ) : (
+            status?.isConfigured && (
+              <button
+                id="btn-nav-dashboard"
                 className="btn btn-secondary btn-sm"
-                onClick={isDockerAvailable ? onResetWizard : undefined}
-                disabled={!isDockerAvailable}
-                title={isDockerAvailable 
-                  ? t('runWizardTooltip') 
-                  : t('engineStopped')}
-                style={!isDockerAvailable ? { opacity: 0.45, cursor: 'not-allowed' } : {}}
-              >
-                <RefreshCw size={12} />
-                <span>{t('runWizard')}</span>
-              </button>
-
-              <button 
-                id="btn-open-settings"
-                className="btn btn-secondary btn-icon"
                 onClick={onOpenSettings}
-                title={t('settings')}
+                title={t('backToDashboard')}
               >
-                <Sliders size={14} />
+                <span>{t('backToDashboard')}</span>
               </button>
-            </>
+            )
           )}
         </div>
       </div>

@@ -62,3 +62,22 @@ export interface StorageStatus {
   folders: Record<string, { exists: boolean; path: string; fileCount: number }>;
   totalTrackCount: number;
 }
+
+export interface NowPlayingTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  coverArtUrl?: string;
+  streamUrl?: string;
+  duration?: number;
+  positionMs?: number;
+  playerName?: string;
+  state?: 'playing' | 'paused' | 'stopped';
+}
+
+export interface NowPlayingResponse {
+  active: boolean;
+  track: NowPlayingTrack | null;
+}
+

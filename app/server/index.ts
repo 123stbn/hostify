@@ -683,7 +683,7 @@ app.get('/api/storage', async (req, res) => {
   const env = parseEnv(ENV_FILE_PATH);
   const musicRoot = env.MUSIC_ROOT || '/volume1/music';
 
-  const subdirs = ['explo', 'slskd', 'torrents'];
+  const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
   const folderStatus: Record<string, { exists: boolean; path: string; fileCount: number }> = {};
 
   let totalFiles = 0;
@@ -736,7 +736,7 @@ app.post('/api/storage/init', (req, res) => {
     if (!fs.existsSync(targetRoot)) {
       fs.mkdirSync(targetRoot, { recursive: true });
     }
-    const subdirs = ['explo', 'slskd', 'torrents'];
+    const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
     for (const sub of subdirs) {
       const p = path.join(targetRoot, sub);
       if (!fs.existsSync(p)) {
@@ -935,6 +935,113 @@ app.get('/api/proxy-snippets', (req, res) => {
   res.json({ caddy, nginx, domain });
 });
 
+// Estado de Reproducción en Vivo (Now Playing desde Navidrome)
+app.get('/api/now-playing', async (req, res) => {
+  try {
+    const currentEnv = parseEnv(ENV_FILE_PATH);
+    const naviPort = currentEnv.NAVIDROME_PORT || '4533';
+    const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
+    const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+
+    const url = `http://127.0.0.1:${naviPort}/rest/getNowPlaying?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) {
+      return res.json({ active: false, track: null });
+    }
+
+    const data = await response.json() as any;
+    const entries = data?.['subsonic-response']?.nowPlaying?.entry;
+    if (entries && Array.isArray(entries) && entries.length > 0) {
+      // Tomamos la pista más reciente o activa
+      const current = entries[0];
+      return res.json({
+        active: true,
+        track: {
+          id: current.id,
+          title: current.title || 'Desconocido',
+          artist: current.artist || 'Artista desconocido',
+          album: current.album || 'Álbum',
+          coverArtId: current.coverArt || null,
+          coverArtUrl: current.coverArt ? `/api/cover-art?id=${encodeURIComponent(current.coverArt)}` : null,
+          streamUrl: `/api/stream?id=${encodeURIComponent(current.id)}`,
+          duration: current.duration || 0,
+          positionMs: current.positionMs || 0,
+          playerName: current.playerName || 'Feishin',
+          state: current.state || 'playing',
+        }
+      });
+    }
+
+    res.json({ active: false, track: null });
+  } catch (err: any) {
+    res.json({ active: false, track: null, error: err.message });
+  }
+});
+
+// Proxy de Carátula de Álbum desde Navidrome
+app.get('/api/cover-art', async (req, res) => {
+  const artId = req.query.id as string;
+  if (!artId) return res.status(400).send('Missing id');
+
+  try {
+    const currentEnv = parseEnv(ENV_FILE_PATH);
+    const naviPort = currentEnv.NAVIDROME_PORT || '4533';
+    const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
+    const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+
+    const url = `http://127.0.0.1:${naviPort}/rest/getCoverArt?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(artId)}`;
+    const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    if (!response.ok) {
+      return res.status(response.status).send('Cover not found');
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err: any) {
+    res.status(500).send('Error fetching cover art');
+  }
+});
+
+// Proxy de Transmisión de Audio para el widget del Dashboard
+app.get('/api/stream', async (req, res) => {
+  const songId = req.query.id as string;
+  if (!songId) return res.status(400).send('Missing song id');
+
+  try {
+    const currentEnv = parseEnv(ENV_FILE_PATH);
+    const naviPort = currentEnv.NAVIDROME_PORT || '4533';
+    const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
+    const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+
+    const url = `http://127.0.0.1:${naviPort}/rest/stream?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(songId)}`;
+    
+    // Redirigir directamente al stream de Navidrome o pasar audio con soporte de chunks
+    const streamRes = await fetch(url);
+    if (!streamRes.ok) {
+      return res.status(streamRes.status).send('Stream error');
+    }
+
+    const contentType = streamRes.headers.get('content-type') || 'audio/flac';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    if (streamRes.body) {
+      // @ts-ignore Node 18+ Web Stream to Node Stream
+      const { Readable } = await import('stream');
+      // @ts-ignore
+      Readable.fromWeb(streamRes.body).pipe(res);
+    } else {
+      res.status(500).send('No stream body');
+    }
+  } catch (err: any) {
+    res.status(500).send('Error streaming track: ' + err.message);
+  }
+});
+
 // Guardar Configuración y Completar Wizard
 app.post('/api/setup', async (req, res) => {
   if (!dockerClient.isAvailable()) {
@@ -968,7 +1075,7 @@ app.post('/api/setup', async (req, res) => {
 
     // 1. Crear subcarpetas requeridas
     const musicRoot = envData.MUSIC_ROOT;
-    const subdirs = ['explo', 'slskd', 'torrents'];
+    const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
     for (const sub of subdirs) {
       const p = path.join(musicRoot, sub);
       if (!fs.existsSync(p)) {

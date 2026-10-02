@@ -26,6 +26,8 @@ Para garantizar la integridad de los metadatos y evitar que archivos incompletos
 
 ```text
 /volume1/music/                  <-- Montado en Navidrome (/music:ro)
+├── personal/                    <-- Colección propia y subidas manuales (CDs, vinilos, MP3/FLAC propios)
+│   └── Artista/Álbum/track.flac
 ├── explo/                       <-- Destino exclusivo de descargas directas (Explo)
 │   └── Artista/Álbum/track.flac
 ├── slskd/                       <-- Destino exclusivo de Soulseek P2P (Slskd)
