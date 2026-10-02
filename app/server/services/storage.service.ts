@@ -96,8 +96,12 @@ export function browseDirectory(queryPath?: string) {
   if (queryPath) {
     targetPath = path.resolve(queryPath);
   } else {
-    // Rutas iniciales inteligentes según el Sistema Operativo
-    if (isWindows) {
+    // When running in Docker, HOST_HOME is the real host home dir (mounted read-only).
+    // Use it as the default starting point so the picker shows the host filesystem.
+    const hostHome = process.env.HOST_HOME;
+    if (hostHome && fs.existsSync(hostHome)) {
+      targetPath = hostHome;
+    } else if (isWindows) {
       targetPath = process.env.USERPROFILE || 'C:\\';
     } else if (isMac) {
       targetPath = os.homedir();
@@ -165,6 +169,8 @@ export function browseDirectory(queryPath?: string) {
 
   // Atajos comunes dinámicos según el Sistema Operativo
   const commonShortcuts: string[] = [];
+  const hostHome = process.env.HOST_HOME;
+
   if (isWindows) {
     for (const letter of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
       const drive = `${letter}:\\`;
@@ -176,13 +182,32 @@ export function browseDirectory(queryPath?: string) {
     if (userHome && !commonShortcuts.includes(userHome)) commonShortcuts.push(userHome);
     const musicFolder = path.join(userHome, 'Music');
     if (fs.existsSync(musicFolder)) commonShortcuts.push(musicFolder);
+  } else if (hostHome && fs.existsSync(hostHome)) {
+    // Entorno Docker con volumen de usuario montado:
+    // Solo mostrar las rutas reales del host del usuario para evitar confundir con rutas internas de Linux/NAS
+    const candidates = [
+      path.join(hostHome, 'Music'),
+      path.join(hostHome, 'music'),
+      hostHome,
+    ];
+    for (const cand of candidates) {
+      if (fs.existsSync(cand) && !commonShortcuts.includes(cand)) commonShortcuts.push(cand);
+    }
   } else if (isMac) {
-    const macCandidates = [os.homedir(), path.join(os.homedir(), 'Music'), '/Volumes', '/'];
+    const macCandidates = [path.join(os.homedir(), 'Music'), os.homedir()];
     for (const cand of macCandidates) {
       if (fs.existsSync(cand) && !commonShortcuts.includes(cand)) commonShortcuts.push(cand);
     }
   } else {
-    const linuxCandidates = ['/volume1', '/volume2', '/media', '/mnt', '/home', os.homedir(), '/'];
+    const userHome = os.homedir();
+    const linuxCandidates = [
+      path.join(userHome, 'Music'),
+      path.join(userHome, 'music'),
+      userHome,
+      '/volume1/music',
+      '/media',
+      '/mnt',
+    ];
     for (const cand of linuxCandidates) {
       if (fs.existsSync(cand) && !commonShortcuts.includes(cand)) commonShortcuts.push(cand);
     }

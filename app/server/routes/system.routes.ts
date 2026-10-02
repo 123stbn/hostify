@@ -18,15 +18,28 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
   const detectedPgid = typeof process.getgid === 'function' ? process.getgid() : 10;
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Lima';
 
-  // Rutas inteligentes por defecto según el SO
+  // Rutas inteligentes por defecto según el SO y entorno Docker
+  const hostHome = process.env.HOST_HOME;
   let defaultMusic = '/volume1/music';
   let defaultDocker = '/volume1/docker';
-  if (process.platform === 'darwin') {
+
+  if (hostHome && fs.existsSync(hostHome)) {
+    // Docker con volumen del host montado: priorizar la carpeta real del usuario
+    defaultMusic = path.join(hostHome, 'Music');
+    defaultDocker = path.join(hostHome, 'docker');
+  } else if (process.platform === 'darwin') {
     defaultMusic = path.join(os.homedir(), 'Music');
     defaultDocker = path.join(os.homedir(), 'docker');
   } else if (process.platform === 'win32') {
     defaultMusic = 'C:\\music';
     defaultDocker = 'C:\\docker';
+  } else {
+    // Linux host directo
+    const linuxHome = os.homedir();
+    if (linuxHome && linuxHome !== '/' && linuxHome !== '/root') {
+      defaultMusic = path.join(linuxHome, 'Music');
+      defaultDocker = path.join(linuxHome, 'docker');
+    }
   }
 
   const ts = detectTailscale();

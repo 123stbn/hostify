@@ -34,9 +34,15 @@ services:
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
       - HOST_IP=${HOST_IP:-}
+      # HOST_HOME: exposes the real host home directory path to the wizard's
+      # directory picker so it can browse /Users/… or /home/… on the host.
+      - HOST_HOME=${HOME}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/app/project
+      # Mount host home dir so the directory picker can browse AND the wizard
+      # can create the music subfolder structure (personal/, explo/, slskd/, torrents/)
+      - ${HOME}:${HOME}
       - ${MUSIC_ROOT:-/volume1/music}:/music
     networks:
       - hostify-net

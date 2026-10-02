@@ -131,8 +131,15 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [showAdvancedNetwork, setShowAdvancedNetwork] = useState(false);
   const [enableListenBrainz, setEnableListenBrainz] = useState<boolean>(draft?.enableListenBrainz ?? (status?.enableListenBrainz ?? true));
-  const [listenBrainzUser, setListenBrainzUser] = useState<string>(draft?.listenBrainzUser ?? (status?.listenBrainzUser || ''));
-  const [listenBrainzToken, setListenBrainzToken] = useState<string>(draft?.listenBrainzToken ?? (status?.listenBrainzToken || ''));
+  const cleanToken = (token?: string) => (!token || token.includes('tu_listenbrainz_token') ? '' : token);
+  const cleanUser = (user?: string) => (!user || user === '123stbn' ? '' : user);
+
+  const [listenBrainzUser, setListenBrainzUser] = useState<string>(
+    cleanUser(draft?.listenBrainzUser ?? status?.listenBrainzUser)
+  );
+  const [listenBrainzToken, setListenBrainzToken] = useState<string>(
+    cleanToken(draft?.listenBrainzToken ?? status?.listenBrainzToken)
+  );
   const [tokenValidStatus, setTokenValidStatus] = useState<string | null>(null);
   const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [tokenValidationState, setTokenValidationState] = useState<'idle' | 'loading' | 'valid' | 'invalid'>('idle');
@@ -178,6 +185,18 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     draft?.remoteAccess ?? (status?.tailscaleDetected ? 'tailscale' : 'local')
   );
   const [domain, setDomain] = useState<string>(draft?.domain ?? (status?.domain || ''));
+
+  // Sincronizar con el estado detectado del servidor si no había un borrador previo guardado
+  React.useEffect(() => {
+    if (!draft && status) {
+      if (status.musicRoot && status.musicRoot !== '/volume1/music') {
+        setMusicRoot(status.musicRoot);
+      }
+      if (status.dockerData && status.dockerData !== '/volume1/docker') {
+        setDockerData(status.dockerData);
+      }
+    }
+  }, [status, draft]);
 
   // Autoguardado
   React.useEffect(() => {
@@ -240,18 +259,20 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
   const openPicker = (target: 'music' | 'docker') => {
     if (target === 'music') {
+      const current = musicRoot && !musicRoot.startsWith('/volume1') ? musicRoot : (status?.musicRoot && !status.musicRoot.startsWith('/volume1') ? status.musicRoot : '');
       setPickerConfig({
         isOpen: true,
         target: 'music',
         title: 'Seleccionar Carpeta para Tu Fonoteca (/music)',
-        initialPath: musicRoot || '/volume1/music',
+        initialPath: current,
       });
     } else {
+      const current = dockerData && !dockerData.startsWith('/volume1') ? dockerData : (status?.dockerData && !status.dockerData.startsWith('/volume1') ? status.dockerData : '');
       setPickerConfig({
         isOpen: true,
         target: 'docker',
         title: 'Seleccionar Carpeta de Datos del Sistema (/docker)',
-        initialPath: dockerData || '/volume1/docker',
+        initialPath: current,
       });
     }
   };
@@ -769,17 +790,44 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                       {t('step2LzLink')}
                     </a>
                   </div>
-                  <input
-                    id="input-lz-token"
-                    type="password"
-                    className="form-input"
-                    value={listenBrainzToken}
-                    onChange={e => setListenBrainzToken(e.target.value)}
-                    placeholder="Token"
-                  />
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="input-lz-token"
+                      type="password"
+                      className="form-input"
+                      value={listenBrainzToken}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setListenBrainzToken(val);
+                        if (!val.trim()) {
+                          setTokenValidStatus(null);
+                          setTokenValidationState('idle');
+                          setListenBrainzUser('');
+                        }
+                      }}
+                      onBlur={() => {
+                        if (listenBrainzToken.trim()) {
+                          handleTestToken();
+                        }
+                      }}
+                      placeholder="Token"
+                    />
+                    {isValidatingToken && (
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                        Validando...
+                      </span>
+                    )}
+                  </div>
                   {tokenValidStatus && (
-                    <p style={{ fontSize: '0.76rem', color: tokenValidationState === 'valid' ? 'var(--status-online-text)' : 'var(--status-warn-text)', marginTop: '4px' }}>
-                      {tokenValidStatus}
+                    <p style={{ 
+                      fontSize: '0.78rem', 
+                      color: tokenValidationState === 'valid' ? 'var(--status-online-text)' : 'var(--status-warn-text)', 
+                      marginTop: '6px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      {tokenValidationState === 'valid' ? '✔' : '⚠'} {tokenValidStatus}
                     </p>
                   )}
                 </div>

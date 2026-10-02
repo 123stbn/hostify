@@ -1,10 +1,10 @@
 # ==============================================================================
 # HOSTIFY - CROSS-PLATFORM POWERSHELL INSTALLER & BOOTSTRAPPER (WINDOWS)
 # ==============================================================================
-# Instala Hostify en Windows y asegura Docker Engine con inicio automático en el SO:
-# - Detecta si Docker Desktop está instalado y corriendo
-# - Si falta, lo instala automáticamente vía winget o descarga el instalador oficial
-# - Configura variables de entorno para Windows e inicia el stack
+# Installs Hostify on Windows and ensures Docker Engine with automatic boot in OS:
+# - Checks if Docker Desktop is installed and running
+# - If missing, installs it automatically via winget or downloads official installer
+# - Configures Windows environment variables and starts the stack
 # ==============================================================================
 $ErrorActionPreference = "Stop"
 
@@ -21,40 +21,40 @@ Write-Host " Personal Music Cloud (Self-Hosted Spotify Alternative)" -Foreground
 Write-Host ""
 
 function Prompt-Confirm ($message) {
-    Write-Host "$message [S/n]: " -ForegroundColor Yellow -NoNewline
+    Write-Host "$message [Y/n]: " -ForegroundColor Yellow -NoNewline
     $response = Read-Host
-    if ([string]::IsNullOrWhiteSpace($response) -or $response -match '^[sSyY]') {
+    if ([string]::IsNullOrWhiteSpace($response) -or $response -match '^[yYsS]') {
         return $true
     }
     return $false
 }
 
 # ------------------------------------------------------------------------------
-# 1. Comprobar Disponibilidad de Docker Desktop
+# 1. Check Docker Desktop Availability
 # ------------------------------------------------------------------------------
 function Ensure-DockerEngine {
-    Write-Host "==> Verificando disponibilidad de Docker Engine..." -ForegroundColor Green
+    Write-Host "==> Checking Docker Engine availability..." -ForegroundColor Green
     
     $dockerCmd = Get-Command docker -ErrorAction SilentlyContinue
     if ($dockerCmd) {
         $dockerReady = & docker info 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✔ Docker Desktop está activo y operativo." -ForegroundColor Green
+            Write-Host "✔ Docker Desktop is up and running." -ForegroundColor Green
             return
         } else {
-            Write-Host "==> Docker está instalado pero no se encuentra en ejecución." -ForegroundColor Yellow
+            Write-Host "==> Docker is installed but not currently running." -ForegroundColor Yellow
             $desktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
             if (Test-Path $desktopPath) {
-                Write-Host "==> Iniciando Docker Desktop..." -ForegroundColor Cyan
+                Write-Host "==> Starting Docker Desktop..." -ForegroundColor Cyan
                 Start-Process $desktopPath
-                Write-Host "Esperando a que el motor Docker inicie..." -ForegroundColor Yellow
+                Write-Host "Waiting for Docker engine to start..." -ForegroundColor Yellow
                 $attempts = 0
                 while ($attempts -lt 30) {
                     Start-Sleep -Seconds 3
                     $attempts++
                     & docker info 2>$null
                     if ($LASTEXITCODE -eq 0) {
-                        Write-Host "`n✔ Docker Desktop iniciado correctamente." -ForegroundColor Green
+                        Write-Host "`n✔ Docker Desktop successfully started." -ForegroundColor Green
                         return
                     }
                     Write-Host -NoNewline "."
@@ -64,43 +64,43 @@ function Ensure-DockerEngine {
         }
     }
 
-    # Si Docker no está instalado
-    Write-Host "[!] Docker Engine / Docker Desktop no está instalado en este equipo." -ForegroundColor Yellow
-    if (Prompt-Confirm "¿Deseas que Hostify instale Docker Desktop automáticamente?") {
+    # If Docker is not installed
+    Write-Host "[!] Docker Engine / Docker Desktop is not installed on this machine." -ForegroundColor Yellow
+    if (Prompt-Confirm "Do you want Hostify to install Docker Desktop automatically?") {
         $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
         if ($wingetCmd) {
-            Write-Host "==> Instalando Docker Desktop vía Windows Package Manager (winget)..." -ForegroundColor Cyan
+            Write-Host "==> Installing Docker Desktop via Windows Package Manager (winget)..." -ForegroundColor Cyan
             & winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
         } else {
-            Write-Host "==> Descargando instalador oficial de Docker Desktop..." -ForegroundColor Cyan
+            Write-Host "==> Downloading official Docker Desktop installer..." -ForegroundColor Cyan
             $installerUrl = "https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe"
             $tempInstaller = "$env:TEMP\DockerDesktopInstaller.exe"
             Invoke-WebRequest -Uri $installerUrl -OutFile $tempInstaller
-            Write-Host "==> Ejecutando instalador de Docker Desktop..." -ForegroundColor Cyan
+            Write-Host "==> Running Docker Desktop installer..." -ForegroundColor Cyan
             Start-Process -FilePath $tempInstaller -ArgumentList "install", "--quiet" -Wait
             Remove-Item $tempInstaller -Force -ErrorAction SilentlyContinue
         }
 
-        # Iniciar Docker Desktop
+        # Start Docker Desktop
         $desktopPath = "C:\Program Files\Docker\Docker\Docker Desktop.exe"
         if (Test-Path $desktopPath) {
-            Write-Host "==> Iniciando Docker Desktop..." -ForegroundColor Green
+            Write-Host "==> Starting Docker Desktop..." -ForegroundColor Green
             Start-Process $desktopPath
-            Write-Host "Esperando a que el motor termine de inicializar (puede tardar un minuto)..." -ForegroundColor Yellow
+            Write-Host "Waiting for Docker engine to initialize (may take about a minute)..." -ForegroundColor Yellow
             $attempts = 0
             while ($attempts -lt 40) {
                 Start-Sleep -Seconds 3
                 $attempts++
                 & docker info 2>$null
                 if ($LASTEXITCODE -eq 0) {
-                    Write-Host "`n✔ Docker Desktop operativo." -ForegroundColor Green
+                    Write-Host "`n✔ Docker Desktop is operational." -ForegroundColor Green
                     return
                 }
                 Write-Host -NoNewline "."
             }
         }
     } else {
-        Write-Error "Docker Desktop es obligatorio para ejecutar Hostify en Windows. Instálalo desde: https://www.docker.com/products/docker-desktop/"
+        Write-Error "Docker Desktop is required to run Hostify on Windows. Install it from: https://www.docker.com/products/docker-desktop/"
         exit 1
     }
 }
@@ -108,7 +108,7 @@ function Ensure-DockerEngine {
 Ensure-DockerEngine
 
 # ------------------------------------------------------------------------------
-# 2. Directorio de Instalación de Hostify
+# 2. Hostify Installation Directory
 # ------------------------------------------------------------------------------
 $InstallDir = if ($env:HOSTIFY_DIR) { $env:HOSTIFY_DIR } else { "$HOME\hostify" }
 if (-not (Test-Path $InstallDir)) {
@@ -116,9 +116,9 @@ if (-not (Test-Path $InstallDir)) {
 }
 Set-Location $InstallDir
 
-# Descargar archivos si no existen
+# Download files if missing or pull updates if git repository exists
 if (-not (Test-Path "docker-compose.yml")) {
-    Write-Host "==> Descargando archivos de Hostify..." -ForegroundColor Cyan
+    Write-Host "==> Downloading Hostify files..." -ForegroundColor Cyan
     $gitCmd = Get-Command git -ErrorAction SilentlyContinue
     if ($gitCmd) {
         git clone https://github.com/123stbn/hostify.git .
@@ -129,22 +129,25 @@ if (-not (Test-Path "docker-compose.yml")) {
         Remove-Item "hostify.zip" -Force
         Remove-Item "$env:TEMP\hostify_unzip" -Recurse -Force
     }
+} elseif (Test-Path ".git") {
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCmd) {
+        Write-Host "==> Checking for Hostify code updates (git pull)..." -ForegroundColor Cyan
+        git pull --quiet 2>$null
+    }
 }
 
 # ------------------------------------------------------------------------------
-# 3. Configuración Inicial de .env para Windows
+# 3. Initial .env Configuration for Windows
 # ------------------------------------------------------------------------------
 if (-not (Test-Path ".env")) {
-    if (Test-Path ".env.example") {
-        Copy-Item ".env.example" ".env"
-    } else {
-        Write-Host "==> Generando archivo de configuración inicial (.env)..." -ForegroundColor Yellow
-        
-        # Rutas por defecto en Windows
-        $MusicPath = "$HOME\Music"
-        $DockerPath = "$HOME\docker"
-        if (Test-Path "C:\music") { $MusicPath = "C:\music" }
-        if (Test-Path "C:\docker") { $DockerPath = "C:\docker" }
+    Write-Host "==> Generating initial configuration file (.env)..." -ForegroundColor Yellow
+    
+    # Default Windows paths
+    $MusicPath = "$HOME\Music"
+    $DockerPath = "$HOME\docker"
+    if (Test-Path "C:\music") { $MusicPath = "C:\music" }
+    if (Test-Path "C:\docker") { $DockerPath = "C:\docker" }
 
         @"
 # ==============================================================================
@@ -169,22 +172,29 @@ SLSKD_API_KEY=$(-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 24 | 
 LIDARR_API_KEY=$(-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 PROWLARR_API_KEY=$(-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 32 | ForEach-Object {[char]$_}))
 "@ | Out-File -Encoding utf8 .env
-    }
 }
 
 # ------------------------------------------------------------------------------
-# 4. Desplegar Contenedor de Hostify
+# 4. Deploy & Update Hostify Services
 # ------------------------------------------------------------------------------
-Write-Host "==> Desplegando Hostify Appliance..." -ForegroundColor Green
-docker compose up -d --build hostify
+Write-Host "==> Updating Docker images to latest versions..." -ForegroundColor Green
+docker compose pull -q 2>$null
+
+if (Test-Path ".hostify_configured.json") {
+    Write-Host "==> Hostify already configured. Updating and redeploying entire stack..." -ForegroundColor Green
+    docker compose up -d --build --remove-orphans
+} else {
+    Write-Host "==> Deploying Hostify Appliance..." -ForegroundColor Green
+    docker compose up -d --build hostify
+}
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor Green
-Write-Host "  ¡Hostify Appliance desplegado y listo!                        " -ForegroundColor Green
+Write-Host "  Hostify Appliance successfully deployed and ready!           " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Abre el Asistente de Configuración (Wizard) en tu navegador:" -ForegroundColor White
+Write-Host "Open the Setup Wizard in your browser:" -ForegroundColor White
 Write-Host "  Local:        http://localhost:3000" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Docker Desktop se encuentra configurado para iniciar automáticamente con Windows." -ForegroundColor Green
+Write-Host "Docker Desktop is configured to start automatically with Windows." -ForegroundColor Green
 Write-Host ""

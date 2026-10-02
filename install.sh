@@ -2,10 +2,10 @@
 # ==============================================================================
 # HOSTIFY - CROSS-PLATFORM INSTALLER & BOOTSTRAPPER (macOS, Linux, WSL)
 # ==============================================================================
-# Instala Hostify y asegura un Docker Engine con inicio automático en el SO:
-# - macOS: Detecta Docker Desktop o instala y arranca Colima vía brew services
-# - Linux: Instala Docker Engine oficial y habilita systemctl enable --now docker
-# - Windows: Redirige automáticamente al instalador nativo install.ps1
+# Installs Hostify and ensures Docker Engine with automatic boot in OS:
+# - macOS: Detects Docker Desktop or installs and starts Colima via brew services
+# - Linux: Installs official Docker Engine and enables systemctl enable --now docker
+# - Windows: Automatically redirects to native PowerShell installer install.ps1
 # ==============================================================================
 set -e
 
@@ -28,7 +28,7 @@ echo "                             |___/ "
 echo " Personal Music Cloud (Self-Hosted Spotify Alternative)"
 echo -e "${COLOR_RESET}"
 
-# Helper para preguntas interactivas (incluso cuando se ejecuta via pipe curl ... | bash)
+# Helper for interactive prompts (even when piped through curl ... | bash)
 prompt_confirm() {
     local prompt_msg="$1"
     local default_yes="${2:-true}"
@@ -40,16 +40,16 @@ prompt_confirm() {
 
     if [ -e /dev/tty ]; then
         if [ "$default_yes" = "true" ]; then
-            echo -en "${COLOR_YELLOW}${prompt_msg} [S/n]: ${COLOR_RESET}" > /dev/tty
+            echo -en "${COLOR_YELLOW}${prompt_msg} [Y/n]: ${COLOR_RESET}" > /dev/tty
             read -r response < /dev/tty
-            response=${response:-S}
+            response=${response:-Y}
         else
-            echo -en "${COLOR_YELLOW}${prompt_msg} [s/N]: ${COLOR_RESET}" > /dev/tty
+            echo -en "${COLOR_YELLOW}${prompt_msg} [y/N]: ${COLOR_RESET}" > /dev/tty
             read -r response < /dev/tty
             response=${response:-N}
         fi
         case "$response" in
-            [sS][iI]|[sS]|y|Y) return 0 ;;
+            [yY][eE][sS]|[yY]|[sS][iI]|[sS]) return 0 ;;
             *) return 1 ;;
         esac
     fi
@@ -57,7 +57,7 @@ prompt_confirm() {
 }
 
 # ------------------------------------------------------------------------------
-# 1. Detección de Sistema Operativo
+# 1. Operating System Detection
 # ------------------------------------------------------------------------------
 OS_NAME="$(uname -s)"
 case "$OS_NAME" in
@@ -79,13 +79,13 @@ case "$OS_NAME" in
         ;;
 esac
 
-echo -e "${COLOR_GREEN}==> Plataforma detectada: ${COLOR_BOLD}${PLATFORM}${COLOR_RESET}"
+echo -e "${COLOR_GREEN}==> Detected platform: ${COLOR_BOLD}${PLATFORM}${COLOR_RESET}"
 
 # ------------------------------------------------------------------------------
-# 2. Si es Windows nativo (Git Bash / MSYS), delegar en PowerShell
+# 2. Windows Native (Git Bash / MSYS) delegation to PowerShell
 # ------------------------------------------------------------------------------
 if [ "$PLATFORM" = "windows" ]; then
-    echo -e "${COLOR_CYAN}==> Windows detectado. Lanzando instalador nativo de PowerShell (install.ps1)...${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}==> Windows detected. Launching native PowerShell installer (install.ps1)...${COLOR_RESET}"
     if [ -f "./install.ps1" ]; then
         powershell.exe -ExecutionPolicy Bypass -File "./install.ps1"
         exit 0
@@ -93,60 +93,60 @@ if [ "$PLATFORM" = "windows" ]; then
         powershell.exe -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/123stbn/hostify/main/install.ps1 | iex"
         exit 0
     else
-        echo -e "${COLOR_RED}[Error] powershell.exe no encontrado en PATH. Ejecuta install.ps1 desde PowerShell.${COLOR_RESET}"
+        echo -e "${COLOR_RED}[Error] powershell.exe not found in PATH. Please run install.ps1 directly from PowerShell.${COLOR_RESET}"
         exit 1
     fi
 fi
 
 # ------------------------------------------------------------------------------
-# 3. Verificación y Aprovisionamiento del Motor Docker con Autostart
+# 3. Check and Provision Docker Engine with Autostart
 # ------------------------------------------------------------------------------
 ensure_docker_engine() {
-    echo -e "${COLOR_GREEN}==> Comprobando disponibilidad de Docker Engine...${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}==> Checking Docker Engine availability...${COLOR_RESET}"
 
-    # Caso A: Docker ya está activo y respondiendo
+    # Case A: Docker is already running and responding
     if docker info &> /dev/null; then
-        echo -e "${COLOR_GREEN}✔ Docker Engine está activo y operativo.${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}✔ Docker Engine is up and running.${COLOR_RESET}"
 
-        # Si estamos en macOS con Colima, asegurar que esté configurado el inicio automático con el SO
+        # If on macOS with Colima, ensure automatic startup on login
         if [ "$PLATFORM" = "macos" ] && command -v colima &> /dev/null && command -v brew &> /dev/null; then
             if ! brew services list 2>/dev/null | grep -q "colima.*started"; then
-                if prompt_confirm "¿Deseas que Colima (Docker) inicie automáticamente cada vez que inicies sesión en macOS?"; then
-                    echo -e "${COLOR_CYAN}==> Configurando inicio automático de Colima con macOS (brew services)...${COLOR_RESET}"
+                if prompt_confirm "Do you want Colima (Docker) to start automatically whenever you log into macOS?"; then
+                    echo -e "${COLOR_CYAN}==> Configuring Colima autostart with macOS (brew services)...${COLOR_RESET}"
                     brew services start colima 2>/dev/null || true
                 fi
             fi
         fi
 
-        # Si estamos en Linux, asegurar que systemd tenga docker habilitado al inicio
+        # If on Linux, ensure systemd has docker enabled on boot
         if [ "$PLATFORM" = "linux" ] && command -v systemctl &> /dev/null; then
             if ! systemctl is-enabled docker &> /dev/null; then
-                echo -e "${COLOR_CYAN}==> Habilitando inicio automático de Docker en el arranque del sistema (systemctl)...${COLOR_RESET}"
+                echo -e "${COLOR_CYAN}==> Enabling Docker autostart on system boot (systemctl)...${COLOR_RESET}"
                 sudo systemctl enable docker 2>/dev/null || true
             fi
         fi
         return 0
     fi
 
-    # Caso B: Docker no está respondiendo. Resolver según la plataforma.
-    echo -e "${COLOR_YELLOW}[!] Docker Engine no está en ejecución.${COLOR_RESET}"
+    # Case B: Docker is not running. Resolve by platform.
+    echo -e "${COLOR_YELLOW}[!] Docker Engine is not currently running.${COLOR_RESET}"
 
     if [ "$PLATFORM" = "macos" ]; then
-        # 1. Comprobar si Colima ya está instalado
+        # 1. Check if Colima is already installed
         if command -v colima &> /dev/null; then
-            echo -e "${COLOR_CYAN}==> Colima detectado en macOS. Iniciando motor...${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}==> Colima detected on macOS. Starting engine...${COLOR_RESET}"
             if command -v brew &> /dev/null; then
-                echo -e "${COLOR_GREEN}==> Iniciando y configurando Colima con inicio automático del SO (brew services)...${COLOR_RESET}"
+                echo -e "${COLOR_GREEN}==> Starting and configuring Colima with OS autostart (brew services)...${COLOR_RESET}"
                 brew services start colima 2>/dev/null || colima start
             else
                 colima start
             fi
             docker context use colima 2>/dev/null || true
-        # 2. Comprobar si Docker Desktop está instalado
+        # 2. Check if Docker Desktop is installed
         elif [ -d "/Applications/Docker.app" ]; then
-            echo -e "${COLOR_CYAN}==> Docker Desktop detectado. Abriendo la aplicación...${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}==> Docker Desktop detected. Launching application...${COLOR_RESET}"
             open -a Docker
-            echo -e "${COLOR_YELLOW}Esperando a que Docker Desktop termine de iniciar...${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}Waiting for Docker Desktop to finish booting...${COLOR_RESET}"
             local attempts=0
             while ! docker info &> /dev/null && [ $attempts -lt 30 ]; do
                 sleep 2
@@ -154,14 +154,14 @@ ensure_docker_engine() {
                 echo -n "."
             done
             echo ""
-        # 3. No hay ningún motor instalado en macOS
+        # 3. No Docker engine installed on macOS
         else
-            echo -e "${COLOR_YELLOW}No se encontró ningún motor Docker en este Mac.${COLOR_RESET}"
-            echo -e "${COLOR_CYAN}Hostify puede instalar Colima (motor Docker ligero, de código abierto y sin coste de licencias).${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}No Docker engine was found on this Mac.${COLOR_RESET}"
+            echo -e "${COLOR_CYAN}Hostify can install Colima (a lightweight, open-source Docker engine with zero license fees).${COLOR_RESET}"
             
-            if prompt_confirm "¿Deseas instalar Colima y configurarlo para iniciar automáticamente con macOS?"; then
+            if prompt_confirm "Do you want to install Colima and configure it to start automatically with macOS?"; then
                 if ! command -v brew &> /dev/null; then
-                    echo -e "${COLOR_CYAN}==> Homebrew no detectado. Instalando Homebrew...${COLOR_RESET}"
+                    echo -e "${COLOR_CYAN}==> Homebrew not detected. Installing Homebrew...${COLOR_RESET}"
                     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                     if [ -f "/opt/homebrew/bin/brew" ]; then
                         eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -170,47 +170,47 @@ ensure_docker_engine() {
                     fi
                 fi
 
-                echo -e "${COLOR_CYAN}==> Instalando Colima, Docker CLI y Docker Compose vía Homebrew...${COLOR_RESET}"
+                echo -e "${COLOR_CYAN}==> Installing Colima, Docker CLI and Docker Compose via Homebrew...${COLOR_RESET}"
                 brew install colima docker docker-compose
 
-                echo -e "${COLOR_GREEN}==> Configurando Colima para iniciar automáticamente con macOS...${COLOR_RESET}"
+                echo -e "${COLOR_GREEN}==> Configuring Colima to start automatically with macOS...${COLOR_RESET}"
                 brew services start colima 2>/dev/null || colima start
                 docker context use colima 2>/dev/null || true
             else
-                echo -e "${COLOR_RED}[Error] Se requiere un motor Docker para ejecutar Hostify.${COLOR_RESET}"
-                echo "Instala Docker Desktop (https://www.docker.com/products/docker-desktop/) o Colima manualmente."
+                echo -e "${COLOR_RED}[Error] A Docker engine is required to run Hostify.${COLOR_RESET}"
+                echo "Please install Docker Desktop (https://www.docker.com/products/docker-desktop/) or Colima manually."
                 exit 1
             fi
         fi
 
     elif [ "$PLATFORM" = "linux" ] || [ "$PLATFORM" = "wsl" ]; then
         if ! command -v docker &> /dev/null; then
-            echo -e "${COLOR_YELLOW}Docker no está instalado en este sistema Linux.${COLOR_RESET}"
-            if prompt_confirm "¿Deseas que Hostify instale Docker Engine oficial y lo configure para iniciar con el sistema?"; then
-                echo -e "${COLOR_CYAN}==> Descargando e instalando Docker Engine oficial (get.docker.com)...${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}Docker is not installed on this Linux system.${COLOR_RESET}"
+            if prompt_confirm "Do you want Hostify to install official Docker Engine and enable autostart?"; then
+                echo -e "${COLOR_CYAN}==> Downloading and installing official Docker Engine (get.docker.com)...${COLOR_RESET}"
                 curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
                 sudo sh /tmp/get-docker.sh
                 rm -f /tmp/get-docker.sh
 
                 if command -v systemctl &> /dev/null; then
-                    echo -e "${COLOR_GREEN}==> Habilitando inicio automático con el sistema (systemctl enable --now docker)...${COLOR_RESET}"
+                    echo -e "${COLOR_GREEN}==> Enabling Docker autostart on system boot (systemctl enable --now docker)...${COLOR_RESET}"
                     sudo systemctl enable --now docker
                 else
                     sudo service docker start || true
                 fi
 
-                # Agregar usuario al grupo docker para evitar requerir sudo
+                # Add user to docker group to avoid sudo
                 if [ "$USER" != "root" ] && [ -n "$USER" ]; then
                     sudo usermod -aG docker "$USER" 2>/dev/null || true
-                    echo -e "${COLOR_YELLOW}[Nota] Tu usuario ($USER) ha sido añadido al grupo 'docker'.${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}[Note] Your user ($USER) has been added to the 'docker' group.${COLOR_RESET}"
                 fi
             else
-                echo -e "${COLOR_RED}[Error] Docker es requerido para ejecutar Hostify.${COLOR_RESET}"
+                echo -e "${COLOR_RED}[Error] Docker is required to run Hostify.${COLOR_RESET}"
                 exit 1
             fi
         else
-            # Docker está instalado pero el demonio está parado
-            echo -e "${COLOR_CYAN}==> Iniciando servicio de Docker...${COLOR_RESET}"
+            # Docker is installed but daemon is stopped
+            echo -e "${COLOR_CYAN}==> Starting Docker service...${COLOR_RESET}"
             if command -v systemctl &> /dev/null; then
                 sudo systemctl enable --now docker 2>/dev/null || sudo systemctl start docker
             else
@@ -219,10 +219,10 @@ ensure_docker_engine() {
         fi
     fi
 
-    # Verificar que Docker quedó activo
+    # Verify Docker is responsive
     if ! docker info &> /dev/null; then
-        echo -e "${COLOR_RED}[Error] No fue posible establecer comunicación con Docker Engine.${COLOR_RESET}"
-        echo "Verifica que el demonio de Docker esté corriendo o reinicia tu sesión de usuario."
+        echo -e "${COLOR_RED}[Error] Could not establish communication with Docker Engine.${COLOR_RESET}"
+        echo "Make sure the Docker daemon is running or log out and log back in."
         exit 1
     fi
 }
@@ -230,14 +230,14 @@ ensure_docker_engine() {
 ensure_docker_engine
 
 # ------------------------------------------------------------------------------
-# 4. Comprobar Docker Compose
+# 4. Check Docker Compose
 # ------------------------------------------------------------------------------
 if docker compose version &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker compose"
 elif command -v docker-compose &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker-compose"
 else
-    echo -e "${COLOR_YELLOW}==> Docker Compose no encontrado. Intentando instalar plugin...${COLOR_RESET}"
+    echo -e "${COLOR_YELLOW}==> Docker Compose not found. Attempting to install plugin...${COLOR_RESET}"
     if [ "$PLATFORM" = "macos" ] && command -v brew &> /dev/null; then
         brew install docker-compose
         DOCKER_COMPOSE_CMD="docker compose"
@@ -245,39 +245,42 @@ else
         sudo apt-get update && sudo apt-get install -y docker-compose-plugin 2>/dev/null || true
         DOCKER_COMPOSE_CMD="docker compose"
     else
-        echo -e "${COLOR_RED}[Error] Docker Compose no está disponible. Por favor instálalo.${COLOR_RESET}"
+        echo -e "${COLOR_RED}[Error] Docker Compose is not available. Please install it.${COLOR_RESET}"
         exit 1
     fi
 fi
 
 # ------------------------------------------------------------------------------
-# 5. Preparar Directorio de Hostify
+# 5. Prepare Hostify Directory
 # ------------------------------------------------------------------------------
-# Si el script se ejecuta dentro de un repositorio ya clonado con docker-compose.yml
+# If running inside an already cloned repository with docker-compose.yml
 if [ -f "./docker-compose.yml" ] && [ -d "./app" ]; then
     INSTALL_DIR="$(pwd)"
-    echo -e "${COLOR_CYAN}==> Ejecutando en repositorio local: ${INSTALL_DIR}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}==> Running inside local repository: ${INSTALL_DIR}${COLOR_RESET}"
 else
     INSTALL_DIR="${HOSTIFY_DIR:-$HOME/hostify}"
-    echo -e "${COLOR_CYAN}==> Directorio de instalación: ${INSTALL_DIR}${COLOR_RESET}"
+    echo -e "${COLOR_CYAN}==> Installation directory: ${INSTALL_DIR}${COLOR_RESET}"
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 
-    # Si no están los archivos, clonar o descargar desde GitHub
+    # If files are missing, clone or download from GitHub
     if [ ! -f "docker-compose.yml" ]; then
-        echo -e "${COLOR_CYAN}==> Descargando archivos de Hostify...${COLOR_RESET}"
+        echo -e "${COLOR_CYAN}==> Downloading Hostify files...${COLOR_RESET}"
         if command -v git &> /dev/null; then
             git clone https://github.com/123stbn/hostify.git .
         else
             curl -fsSL https://github.com/123stbn/hostify/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1
         fi
+    elif [ -d ".git" ] && command -v git &> /dev/null; then
+        echo -e "${COLOR_CYAN}==> Checking for Hostify code updates (git pull)...${COLOR_RESET}"
+        git pull --quiet 2>/dev/null || true
     fi
 fi
 
 cd "$INSTALL_DIR"
 
 # ------------------------------------------------------------------------------
-# 6. Detección de Rutas Inteligentes y Configuración de .env
+# 6. Smart Path Detection and Initial .env Setup
 # ------------------------------------------------------------------------------
 DEFAULT_MUSIC="/volume1/music"
 DEFAULT_DOCKER="/volume1/docker"
@@ -295,7 +298,7 @@ fi
 DETECTED_PUID="$(id -u 2>/dev/null || echo 1000)"
 DETECTED_PGID="$(id -g 2>/dev/null || echo 10)"
 
-# Detección de Zona Horaria
+# Timezone Detection
 DETECTED_TZ="America/Lima"
 if [ "$PLATFORM" = "macos" ]; then
     LOCALTIME_LINK="$(readlink /etc/localtime 2>/dev/null || true)"
@@ -311,11 +314,8 @@ elif [ "$PLATFORM" = "linux" ]; then
 fi
 
 if [ ! -f .env ]; then
-    if [ -f .env.example ]; then
-        cp .env.example .env
-    else
-        echo -e "${COLOR_YELLOW}==> Generando archivo de configuración inicial (.env)...${COLOR_RESET}"
-        cat << EOF > .env
+    echo -e "${COLOR_YELLOW}==> Generating initial configuration file (.env)...${COLOR_RESET}"
+    cat << EOF > .env
 # ==============================================================================
 # HOSTIFY APPLIANCE - AUTO-GENERATED CONFIGURATION
 # ==============================================================================
@@ -338,19 +338,26 @@ SLSKD_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c
 LIDARR_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 32 || echo "lidarr_secret_key")
 PROWLARR_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 32 || echo "prowlarr_secret_key")
 EOF
-        # Permisos estrictos para evitar lectura de credenciales por otros usuarios
-        chmod 600 .env 2>/dev/null || true
-    fi
+    # Strict permissions to protect credentials from other users
+    chmod 600 .env 2>/dev/null || true
 fi
 
 # ------------------------------------------------------------------------------
-# 7. Despliegue de Hostify Appliance
+# 7. Deploy & Update Hostify Services
 # ------------------------------------------------------------------------------
-echo -e "${COLOR_GREEN}==> Desplegando Hostify Appliance...${COLOR_RESET}"
-$DOCKER_COMPOSE_CMD up -d --build hostify
+echo -e "${COLOR_GREEN}==> Updating Docker images to latest versions...${COLOR_RESET}"
+$DOCKER_COMPOSE_CMD pull -q 2>/dev/null || true
+
+if [ -f .hostify_configured.json ]; then
+    echo -e "${COLOR_GREEN}==> Hostify already configured. Updating and redeploying entire stack...${COLOR_RESET}"
+    $DOCKER_COMPOSE_CMD up -d --build --remove-orphans
+else
+    echo -e "${COLOR_GREEN}==> Deploying Hostify Appliance...${COLOR_RESET}"
+    $DOCKER_COMPOSE_CMD up -d --build hostify
+fi
 
 # ------------------------------------------------------------------------------
-# 8. Obtener Dirección IP y Mostrar Mensaje de Bienvenida
+# 8. Get Host IP and Show Welcome Message
 # ------------------------------------------------------------------------------
 HOST_IP="localhost"
 if [ "$PLATFORM" = "macos" ]; then
@@ -361,20 +368,20 @@ fi
 
 echo ""
 echo -e "${COLOR_GREEN}================================================================${COLOR_RESET}"
-echo -e "${COLOR_BOLD}${COLOR_GREEN}  ¡Hostify Appliance desplegado y listo!                        ${COLOR_RESET}"
+echo -e "${COLOR_BOLD}${COLOR_GREEN}  Hostify Appliance successfully deployed and ready!           ${COLOR_RESET}"
 echo -e "${COLOR_GREEN}================================================================${COLOR_RESET}"
 echo ""
-echo -e "Abre el Asistente de Configuración (Wizard) en tu navegador:"
+echo -e "Open the Setup Wizard in your browser:"
 echo -e "  Local:        ${COLOR_CYAN}http://localhost:3000${COLOR_RESET}"
 if [ "$HOST_IP" != "127.0.0.1" ] && [ "$HOST_IP" != "localhost" ]; then
-    echo -e "  Red Local:    ${COLOR_CYAN}http://${HOST_IP}:3000${COLOR_RESET}"
+    echo -e "  Local Network:${COLOR_CYAN}http://${HOST_IP}:3000${COLOR_RESET}"
 fi
 echo ""
-echo -e "El asistente te guiará para:"
-echo -e "  1. Seleccionar carpetas de música y datos."
-echo -e "  2. Definir tus credenciales maestras y conectar ListenBrainz."
-echo -e "  3. Elegir motores de descarga (Explo, Slskd, Torrents, Lidarr)."
-echo -e "  4. Configurar acceso remoto con Tailscale o Reverse Proxy."
+echo -e "The setup wizard will guide you to:"
+echo -e "  1. Select your music and data directories."
+echo -e "  2. Define master credentials and connect ListenBrainz."
+echo -e "  3. Choose ingestion downloaders (Explo, Slskd, Torrents, Lidarr)."
+echo -e "  4. Configure remote access with Tailscale or Reverse Proxy."
 echo ""
-echo -e "${COLOR_GREEN}Tu motor Docker se encuentra configurado para iniciar automáticamente con tu sistema operativo.${COLOR_RESET}"
+echo -e "${COLOR_GREEN}Your Docker engine is configured to start automatically with your operating system.${COLOR_RESET}"
 echo ""

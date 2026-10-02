@@ -55,13 +55,31 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       PROWLARR_API_KEY: payload.prowlarrApiKey || currentEnv.PROWLARR_API_KEY || crypto.randomBytes(16).toString('hex'),
     };
 
-    // 1. Crear subcarpetas requeridas
+    // Auto-resolver nombre de usuario de ListenBrainz si solo se ingresó el token
+    if (envData.LZ_TOKEN && !envData.LZ_USER) {
+      try {
+        const lzRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
+          headers: { Authorization: `Token ${envData.LZ_TOKEN}` },
+          signal: AbortSignal.timeout(4000),
+        });
+        const lzData = await lzRes.json() as any;
+        if (lzData.valid && lzData.user_name) {
+          envData.LZ_USER = lzData.user_name;
+        }
+      } catch {
+        // Fallback silencioso si no hay conexión a internet en el momento del setup
+      }
+    }
+
+    // 1. Create required subfolders (best-effort: path may be read-only inside the
+    //    container if it lives under HOST_HOME which is mounted :ro for browsing).
+    //    The subdirs will also be created by the ingestion containers on first start.
     const musicRoot = envData.MUSIC_ROOT;
     const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
     for (const sub of subdirs) {
       const p = path.join(musicRoot, sub);
       if (!fs.existsSync(p)) {
-        try { fs.mkdirSync(p, { recursive: true }); } catch {}
+        try { fs.mkdirSync(p, { recursive: true }); } catch { /* read-only or missing — ok */ }
       }
     }
 
