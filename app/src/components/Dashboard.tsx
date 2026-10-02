@@ -3,7 +3,7 @@ import {
   Play, Square, RotateCw, ExternalLink, FileText, 
   Globe, Radio, Music, DownloadCloud, 
   Server, Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
-  Laptop, Smartphone, Apple, Sparkles, Headphones, Eye, EyeOff,
+  Laptop, Smartphone, Sparkles, Headphones, Eye, EyeOff,
   ChevronDown, ChevronUp, Maximize2, Pause, SkipForward, SkipBack,
   Volume2, VolumeX, Shuffle, Check, Compass
 } from 'lucide-react';
@@ -38,6 +38,21 @@ const AndroidIcon: React.FC<{ size?: number; className?: string; style?: React.C
     aria-hidden="true"
   >
     <path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z" />
+  </svg>
+);
+
+const AppleIcon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }> = ({ size = 18, className, style }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    style={style}
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+  >
+    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.61-.74 1.04-1.79.92-2.87-.93.04-2.03.62-2.69 1.39-.58.66-1.09 1.73-.95 2.76 1.04.08 2.11-.54 2.72-1.28" />
   </svg>
 );
 
@@ -467,11 +482,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     }
   };
 
-  const hostIp = sysStats?.hostIp || status?.hostIp || '127.0.0.1';
+  const currentBrowserHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '';
+  const detectedHost = sysStats?.hostIp || status?.hostIp || '127.0.0.1';
+
+  // IP accesible en la red local (para clientes externos en celulares, tablets, etc.)
+  const networkHostIp = (detectedHost && detectedHost !== '127.0.0.1' && detectedHost !== 'localhost')
+    ? detectedHost
+    : (currentBrowserHost && currentBrowserHost !== 'localhost' && currentBrowserHost !== '127.0.0.1' ? currentBrowserHost : '127.0.0.1');
+
+  // Para el navegador web local que está usando el usuario en esta máquina:
+  const localHost = currentBrowserHost || networkHostIp || 'localhost';
+
   const naviPort = status?.navidromePort || '4533';
   const feishinPort = status?.feishinPort || '9188';
-  const subsonicUrl = `http://${hostIp}:${naviPort}`;
-  const feishinUrl = `http://${hostIp}:${feishinPort}`;
+
+  // URL de conexión para clientes externos (Symfonium, Amperfy, Feishin Desktop en otros dispositivos):
+  // Si hay un dominio configurado, se usa el dominio; en caso contrario, la IP real del servidor en la red local
+  const subsonicUrl = status?.domain 
+    ? (status.domain.startsWith('http') ? status.domain : `https://${status.domain}`)
+    : `http://${networkHostIp}:${naviPort}`;
+
+  const feishinUrl = `http://${localHost}:${feishinPort}`;
+  const navidromeLocalUrl = `http://${localHost}:${naviPort}`;
   const runningContainers = containers.filter(c => c.state === 'running').length;
   const hasPendingServices = containers.some(c => c.category !== 'connectivity' && c.state !== 'running');
   const isFeishinRunning = containers.find(c => c.name.includes('feishin'))?.state === 'running';
@@ -486,32 +518,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const isSlskdRunning = slskdContainer?.state === 'running';
 
   const getContainerUrl = (c?: ContainerInfo, fallbackPort = '80'): string => {
-    if (!c) return `http://${hostIp}:${fallbackPort}`;
+    // Si es Prowlarr o Lidarr y estamos en la máquina anfitrión (localhost/127.0.0.1), usar siempre el mismo host de la barra de navegación
+    const targetHost = (c?.name.includes('prowlarr') || c?.name.includes('lidarr')) && currentBrowserHost
+      ? currentBrowserHost
+      : (networkHostIp || localHost);
+
+    if (!c) return `http://${targetHost}:${fallbackPort}`;
     if (c.webUiUrl) {
       try {
         const u = new URL(c.webUiUrl);
-        if (u.port) return `http://${hostIp}:${u.port}`;
+        if (u.port) return `http://${targetHost}:${u.port}`;
       } catch {
         // continue
       }
     }
-    if (c.name.includes('slskd')) return `http://${hostIp}:5030`;
-    if (c.name.includes('explo')) return `http://${hostIp}:7288`;
-    if (c.name.includes('navidrome')) return `http://${hostIp}:${naviPort}`;
-    if (c.name.includes('feishin')) return `http://${hostIp}:${feishinPort}`;
-    if (c.name.includes('qbittorrent')) return `http://${hostIp}:8080`;
-    if (c.name.includes('prowlarr')) return `http://${hostIp}:9696`;
-    if (c.name.includes('lidarr')) return `http://${hostIp}:8686`;
-    if (c.name.includes('scrobbler')) return `http://${hostIp}:9078`;
+    if (c.name.includes('slskd')) return `http://${targetHost}:5030`;
+    if (c.name.includes('explo')) return `http://${targetHost}:7288`;
+    if (c.name.includes('navidrome')) return `http://${targetHost}:${naviPort}`;
+    if (c.name.includes('feishin')) return `http://${targetHost}:${feishinPort}`;
+    if (c.name.includes('qbittorrent')) return `http://${targetHost}:8080`;
+    if (c.name.includes('prowlarr')) return `http://${targetHost}:9696`;
+    if (c.name.includes('lidarr')) return `http://${targetHost}:8686`;
+    if (c.name.includes('scrobbler')) return `http://${targetHost}:9078`;
 
     if (c.ports && c.ports.length > 0) {
       for (const p of c.ports) {
         const first = String(p).split(':')[0];
         const num = parseInt(first, 10);
-        if (!isNaN(num) && num > 0) return `http://${hostIp}:${num}`;
+        if (!isNaN(num) && num > 0) return `http://${targetHost}:${num}`;
       }
     }
-    return `http://${hostIp}:${fallbackPort}`;
+    return `http://${targetHost}:${fallbackPort}`;
   };
 
   const slskdUrl = getContainerUrl(slskdContainer, '5030');
@@ -887,7 +924,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
             {/* Feishin Web */}
             <div className="flat-row">
               <div className="flat-row-info">
-                <Music size={20} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
+                <Music size={20} className="flat-icon" />
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span className="flat-row-title">{t('feishinWebTitle')}</span>
@@ -935,7 +972,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               </div>
               <div>
                 <a
-                  href={isNavidromeRunning ? subsonicUrl : '#'}
+                  href={isNavidromeRunning ? navidromeLocalUrl : '#'}
                   target={isNavidromeRunning ? "_blank" : undefined}
                   rel="noreferrer"
                   onClick={!isNavidromeRunning ? (e) => e.preventDefault() : undefined}
@@ -1052,7 +1089,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                         {c.name.includes('navidrome') && <Radio size={18} />}
                         {c.name.includes('scrobbler') && <Disc3 size={18} />}
                         {c.name.includes('slskd') && <DownloadCloud size={18} />}
-                        {c.name.includes('explo') && <Sparkles size={18} style={{ color: 'var(--accent-brass)' }} />}
+                        {c.name.includes('explo') && <Sparkles size={18} />}
                         {c.name.includes('qbittorrent') && <Server size={18} />}
                         {c.name.includes('prowlarr') && <Layers size={18} />}
                         {c.name.includes('lidarr') && <Disc3 size={18} />}
@@ -1150,7 +1187,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           <div className="flat-list" style={{ marginBottom: '28px' }}>
             <div className="flat-row">
               <div className="flat-row-info">
-                <Folder size={18} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
+                <Folder size={18} className="flat-icon" />
                 <div>
                   <div className="flat-row-title">{t('folderPersonalTitle')}</div>
                   <p className="flat-row-desc">{t('folderPersonalDesc')}</p>
@@ -1163,7 +1200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
 
             <div className="flat-row">
               <div className="flat-row-info">
-                <Sparkles size={18} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
+                <Sparkles size={18} className="flat-icon" />
                 <div>
                   <div className="flat-row-title">{t('folderExploTitle')}</div>
                   <p className="flat-row-desc">{t('folderExploDesc')}</p>
@@ -1238,7 +1275,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {t('connUrlLabel')} <code>http://{hostIp}:{naviPort}</code>
+              {t('connUrlLabel')} <code>{subsonicUrl}</code>
             </span>
 
             <div style={{ display: 'flex', gap: '6px' }}>
@@ -1279,9 +1316,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                     <div className="flat-row-info">
                       <div className="flat-icon">
                         {player.category === 'android' && <AndroidIcon size={18} />}
-                        {player.category === 'ios' && <Apple size={18} />}
+                        {player.category === 'ios' && <AppleIcon size={18} />}
                         {player.category === 'desktop' && <Laptop size={18} />}
-                        {player.category === 'web' && <Music size={18} style={{ color: 'var(--accent-brass)' }} />}
+                        {player.category === 'web' && <Music size={18} />}
                       </div>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

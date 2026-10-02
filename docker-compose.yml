@@ -33,6 +33,7 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - HOST_IP=${HOST_IP:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/app/project
@@ -236,6 +237,8 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - PROWLARR__AUTH__METHOD=Forms
+      - PROWLARR__AUTH__REQUIRED=DisabledForLocalAddresses
     ports:
       - "9696:9696"
     volumes:
@@ -254,6 +257,8 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - LIDARR__AUTH__METHOD=Forms
+      - LIDARR__AUTH__REQUIRED=DisabledForLocalAddresses
     ports:
       - "8686:8686"
     volumes:

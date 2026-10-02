@@ -202,7 +202,7 @@ export const translations = {
     step3SlskdTitle: 'Comunidad Soulseek (Slskd)',
     step3SlskdDesc: 'Descargas rápidas en alta fidelidad de coleccionistas y melómanos (FLAC, maquetas y vinilos).',
     step3LidarrTitle: 'Discografías Completas (Lidarr + Prowlarr + qBittorrent)',
-    step3LidarrDesc: 'Supervisa álbumes enteros con carátulas oficiales, manteniendo las descargas temporales fuera de tu fonoteca.',
+    step3LidarrDesc: 'Supervisa álbumes enteros con carátulas oficiales. Incluye indexadores públicos de música auto-configurados (The Pirate Bay, Nyaa.si y LimeTorrents) y mantiene las descargas temporales fuera de tu fonoteca.',
 
     step4Title: '4. Escuchar Fuera de Casa',
     step4Desc: 'Lleva tu fonoteca contigo en el coche, en el trabajo o de viaje.',
@@ -433,7 +433,7 @@ export const translations = {
     step3SlskdTitle: 'Soulseek Community (Slskd)',
     step3SlskdDesc: 'Direct high-fidelity downloads from music collectors and audiophiles (FLAC, vinyl rips, and rare demos).',
     step3LidarrTitle: 'Complete Discographies (Lidarr + Prowlarr + qBittorrent)',
-    step3LidarrDesc: 'Monitors artist catalogs with official artwork, keeping active torrent buffers completely separated.',
+    step3LidarrDesc: 'Monitors artist catalogs with official artwork. Comes with pre-configured public music indexers (The Pirate Bay, Nyaa.si, and LimeTorrents) and keeps active torrent buffers completely separated.',
 
     step4Title: '4. Remote Access & Mobility',
     step4Desc: 'Take your library with you in your car, at work, or while traveling.',

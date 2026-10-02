@@ -806,7 +806,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 onClick={() => toggleModule('explo')}
               >
                 <div className="flat-row-info">
-                  <Sparkles size={18} className="flat-icon" style={{ color: 'var(--accent-brass)' }} />
+                  <Sparkles size={18} className="flat-icon" />
                   <div>
                     <span className="flat-row-title">{t('step3ExploTitle')}</span>
                     <p className="flat-row-desc">{t('step3ExploDesc')}</p>

@@ -1,23 +1,8 @@
 import http from 'node:http';
 import fs from 'node:fs';
-
-export interface ContainerInfo {
-  id: string;
-  name: string;
-  image: string;
-  state: 'running' | 'stopped' | 'restarting' | 'paused' | 'exited' | 'not_created';
-  status: string;
-  ports: string[];
-  cpuPercent?: number;
-  memoryUsageMb?: number;
-  memoryLimitMb?: number;
-  webUiUrl?: string;
-  category: 'core' | 'downloader' | 'connectivity';
-  description: string;
-}
-
 import os from 'node:os';
 import path from 'node:path';
+import { ContainerInfo } from '../types/index.js';
 
 export class DockerClient {
   private socketPath: string;
@@ -210,3 +195,5 @@ export class DockerClient {
     }
   }
 }
+
+export const dockerClient = new DockerClient();

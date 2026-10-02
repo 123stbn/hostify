@@ -299,7 +299,7 @@ body {
 }
 
 .flat-icon {
-  color: var(--text-muted);
+  color: var(--accent-brass);
   margin-top: 2px;
   flex-shrink: 0;
 }
