@@ -1,0 +1,270 @@
+# ==============================================================================
+# HOSTIFY: PERSONAL MUSIC CLOUD (SELF-HOSTED SPOTIFY ALTERNATIVE)
+# ==============================================================================
+# Stack de streaming autohospedado llave en mano:
+# - Streaming Core: Navidrome (OpenSubsonic API para Feishin & Symfonium)
+# - Scrobbling & Metadatos: Multi-Scrobbler + MusicBrainz -> ListenBrainz
+# - Ingesta Segmentada: Explo (Direct), Slskd (Soulseek), qBittorrent (Torrents)
+# - Indexación: Prowlarr
+# - Acceso Remoto: Tailscale Sidecar (Opcional) o Reverse Proxy
+# - Appliance Web UI: Hostify Wizard & Dashboard (:3000)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # HOSTIFY APPLIANCE: SETUP WIZARD & MANAGEMENT DASHBOARD
+  # ----------------------------------------------------------------------------
+  hostify:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: hostify/appliance:latest
+    container_name: hostify-appliance
+    restart: unless-stopped
+    ports:
+      - "${HOSTIFY_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - HOSTIFY_PORT=3000
+      - DOCKER_SOCK=/var/run/docker.sock
+      - COMPOSE_PROJECT_DIR=/app/project
+      - MUSIC_ROOT=${MUSIC_ROOT:-/volume1/music}
+      - DOCKER_DATA=${DOCKER_DATA:-/volume1/docker}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/app/project
+      - ${MUSIC_ROOT:-/volume1/music}:/music
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # NÚCLEO DE STREAMING: NAVIDROME (OPEN SUBSONIC API)
+  # ----------------------------------------------------------------------------
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: hostify-navidrome
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-10}"
+    ports:
+      - "${NAVIDROME_PORT:-4533}:4533"
+    environment:
+      - ND_SCANSCHEDULE=1m
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=48h
+      - ND_BASEURL=${BASE_URL:-}
+      - ND_ENABLETRANSCODINGCONFIG=true
+      - ND_ENABLESHARING=true
+      - ND_REVERSEPROXYUSERHEADER=${REVERSE_PROXY_USER_HEADER:-}
+      # Aprovisionamiento automático de usuario administrador para zero-config
+      - ND_DEVAUTOCREATEADMINPASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      - ND_DEVAUTOLOGINUSERNAME=${NAVIDROME_ADMIN_USER:-admin}
+      - ND_REVERSEPROXYWHITELIST=${REVERSE_PROXY_WHITELIST:-}
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/navidrome/data:/data
+      # Ingesta recursiva: Navidrome lee todas las subcarpetas (explo, slskd, torrents)
+      - ${MUSIC_ROOT:-/volume1/music}:/music:ro
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # REPRODUCTOR WEB MODERNO: FEISHIN (CLIENTE OPENSUBSONIC ESTILO SPOTIFY)
+  # ----------------------------------------------------------------------------
+  feishin:
+    image: ghcr.io/jeffvli/feishin:latest
+    container_name: hostify-feishin
+    restart: unless-stopped
+    ports:
+      - "${FEISHIN_PORT:-9188}:9180"
+    environment:
+      - SERVER_NAME=Hostify
+      - SERVER_TYPE=navidrome
+      - SERVER_URL=${BASE_URL:-}
+      - SERVER_LOCK=true
+      - NAVIDROME_PORT=${NAVIDROME_PORT:-4533}
+      - NAVIDROME_ADMIN_USER=${NAVIDROME_ADMIN_USER:-admin}
+      - NAVIDROME_ADMIN_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      - ANALYTICS_DISABLED=true
+      - FS_GENERAL_THEME=defaultDark
+    volumes:
+      - ./docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # CAPA DE SCROBBLING & ENRIQUECIMIENTO DE METADATOS
+  # ----------------------------------------------------------------------------
+  multi-scrobbler:
+    image: foxxmd/multi-scrobbler:latest
+    container_name: hostify-multi-scrobbler
+    restart: unless-stopped
+    ports:
+      - "9078:9078"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+      # ListenBrainz - Cliente
+      - LZ_USER=${LZ_USER:-}
+      - LZ_TOKEN=${LZ_TOKEN:-}
+      - LZ_ID=listenbrainz
+      # Navidrome / Subsonic - Fuente de Reproducción (Source)
+      - SUBSONIC_ID=navidrome
+      - SUBSONIC_NAME=Navidrome
+      - SUBSONIC_URL=http://hostify-navidrome:${NAVIDROME_PORT:-4533}
+      - SUBSONIC_USER=${NAVIDROME_ADMIN_USER:-admin}
+      - SUBSONIC_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      # MusicBrainz - Transformación inteligente de tags
+      - MB_PRESETS=default,sensible,native
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/multi-scrobbler/config:/config
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # INGESTA 1: DESCARGA DIRECTA DE AUDIO (EXPLO)
+  # ----------------------------------------------------------------------------
+  explo:
+    image: ghcr.io/lumepart/explo:latest
+    container_name: hostify-explo
+    restart: unless-stopped
+    ports:
+      - "7288:7288"
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+      - WEB_UI=true
+      - WIZARD_COMPLETE=true
+      # Integración con ListenBrainz para descubrimiento semanal automático
+      - DISCOVERY_SERVICE=listenbrainz
+      - LISTENBRAINZ_USER=${LZ_USER:-}
+      - LISTENBRAINZ_USER_TOKEN=${LZ_TOKEN:-}
+      - LISTENBRAINZ_DISCOVERY=playlist
+      - ENRICH_TRACK_METADATA=true
+      # Integración con Navidrome (OpenSubsonic)
+      - EXPLO_SYSTEM=subsonic
+      - SYSTEM_URL=http://hostify-navidrome:${NAVIDROME_PORT:-4533}
+      - SYSTEM_USERNAME=${NAVIDROME_ADMIN_USER:-admin}
+      - SYSTEM_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      # Programación automática de Playlists de Descubrimiento (Zero-Config)
+      - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2
+      - WEEKLY_EXPLORATION_FLAGS=--playlist weekly-exploration
+      - WEEKLY_JAMS_SCHEDULE=30 00 * * 1
+      - WEEKLY_JAMS_FLAGS=--playlist weekly-jams
+      - DAILY_JAMS_SCHEDULE=15 01 * * *
+      - DAILY_JAMS_FLAGS=--playlist daily-jams
+      - ON_REPEAT_SCHEDULE=00 12 1 * *
+      - ON_REPEAT_FLAGS=--playlist on-repeat
+      # Cadena de servicios de descarga en orden de prioridad (Hi-Fi / Lossless sin YouTube)
+      - DOWNLOAD_SERVICES=slskd,lidarr
+      # Integración con SLSKD (Soulseek P2P)
+      - SLSKD_URL=http://hostify-slskd:5030
+      - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}
+      # Integración con Lidarr (*arr)
+      - LIDARR_URL=http://hostify-lidarr:8686
+      - LIDARR_API_KEY=${LIDARR_API_KEY:-}
+      - WEB_ENV_PATH=/opt/explo/config/.env
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/explo/config:/opt/explo/config
+      - ${MUSIC_ROOT:-/volume1/music}/explo:/data
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # INGESTA 2: DESCARGAS P2P SOULSEEK (SLSKD)
+  # ----------------------------------------------------------------------------
+  slskd:
+    image: slskd/slskd:latest
+    container_name: hostify-slskd
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-10}"
+    ports:
+      - "5030:5030"
+      - "5031:5031"
+      - "50300:50300"
+    environment:
+      # Desactivar pantalla de inicio de sesión Web UI para acceso directo desde Hostify
+      - SLSKD_NO_AUTH=true
+      - SLSKD_REMOTE_CONFIGURATION=true
+      - SLSKD_SLSK_USERNAME=${SLSKD_USERNAME:-hostify_user}
+      - SLSKD_SLSK_PASSWORD=${SLSKD_PASSWORD:-hostify_pass}
+      - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}
+      - SLSKD_DOWNLOADS_DIR=/downloads
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/slskd:/app
+      - ${MUSIC_ROOT:-/volume1/music}/slskd:/downloads
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # INGESTA 3: BITTORRENT (QBITTORRENT) CON SEGREGACIÓN DE BÚFER
+  # ----------------------------------------------------------------------------
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: hostify-qbittorrent
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=6881
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/qbittorrent/config:/config
+      # Archivos incompletos aislados (Navidrome no los ve):
+      - ${DOCKER_DATA:-/volume1/docker}/qbittorrent/incomplete:/downloads/incomplete
+      # Archivos 100% completados (Navidrome los indexa de inmediato):
+      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads/completed
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # INDEXADOR DE TORRENTS: PROWLARR
+  # ----------------------------------------------------------------------------
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: hostify-prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+    ports:
+      - "9696:9696"
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/prowlarr:/config
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # GESTOR Y AUTOMATIZACIÓN DE MÚSICA (*ARR): LIDARR
+  # ----------------------------------------------------------------------------
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: hostify-lidarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+    ports:
+      - "8686:8686"
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/lidarr:/config
+      - ${MUSIC_ROOT:-/volume1/music}:/music
+      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads
+    networks:
+      - hostify-net
+
+
+networks:
+  hostify-net:
+    name: hostify-net
+    driver: bridge

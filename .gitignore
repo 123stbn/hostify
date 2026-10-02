@@ -1,0 +1,56 @@
+# ==============================================================================
+# HOSTIFY - GITIGNORE
+# ==============================================================================
+
+# Entorno y credenciales locales (NUNCA subir a Git)
+.env
+.env*.local
+.env.production
+.hostify_configured.json
+
+# Dependencias Node.js / pnpm
+node_modules/
+app/node_modules/
+.pnpm-store/
+.pnpm-debug.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Compilados y builds
+dist/
+app/dist/
+build/
+*.tsbuildinfo
+
+# Bases de datos y datos persistentes locales de Docker
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+data/
+docker/*
+!docker/feishin/
+music/
+Test/
+
+# Logs del sistema y contenedores
+logs/
+*.log
+
+# Archivos del sistema operativo (macOS, Windows, Linux)
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Configuraciones de editores e IDEs
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo

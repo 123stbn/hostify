@@ -1,0 +1,12 @@
+{
+  "configuredAt": "2026-10-01T21:04:43.934Z",
+  "modules": {
+    "explo": true,
+    "slskd": true,
+    "qbittorrent": true,
+    "prowlarr": true,
+    "lidarr": true
+  },
+  "remoteAccess": "local",
+  "enableListenBrainz": true
+}
