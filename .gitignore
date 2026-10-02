@@ -6,7 +6,7 @@
 .env
 .env*.local
 .env.production
-.hostify_configured.json
+.hostify_configured*
 
 # Dependencias Node.js / pnpm
 node_modules/
