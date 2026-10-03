@@ -1,0 +1,35 @@
+# ==============================================================================
+# HOSTIFY APPLIANCE - OFFICIAL DEPLOYMENT (PORTAINER / NAS / DOCKER COMPOSE)
+# ==============================================================================
+# Single-step deployment using the official pre-built image.
+# Does not require cloning the Git repository or compiling with Node.js.
+#
+# Web Dashboard: http://<SERVER-OR-NAS-IP>:3500 (or http://hostify.local:3500)
+# ==============================================================================
+version: '3.8'
+
+services:
+  hostify:
+    image: hostify/appliance:latest
+    container_name: hostify-appliance
+    restart: unless-stopped
+    ports:
+      - "${HOSTIFY_PORT:-3500}:3500"
+    environment:
+      - NODE_ENV=production
+      - HOSTIFY_PORT=3500
+      - DOCKER_SOCK=/var/run/docker.sock
+      - COMPOSE_PROJECT_DIR=/app/project
+      # Storage paths on your server or NAS (e.g. /volume1/music on Ugreen / Synology)
+      - MUSIC_ROOT=${MUSIC_ROOT:-/volume1/music}
+      - DOCKER_DATA=${DOCKER_DATA:-/volume1/docker/hostify}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Stores the wizard-generated .env file and stack configurations
+      - ${DOCKER_DATA:-/volume1/docker/hostify}/project:/app/project
+      - ${MUSIC_ROOT:-/volume1/music}:/music
+      - ${DOCKER_DATA:-/volume1/docker/hostify}:${DOCKER_DATA:-/volume1/docker/hostify}
+    network_mode: bridge

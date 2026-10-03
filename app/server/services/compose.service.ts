@@ -33,6 +33,20 @@ export function triggerDeploy(): boolean {
 
   const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
   if (!fs.existsSync(composePath)) {
+    // Si no existe en PROJECT_DIR (despliegues standalone o portainer sin git),
+    // copiar la plantilla interna empaquetada
+    const bundledTemplate = path.join(process.cwd(), 'templates', 'docker-compose.yml');
+    if (fs.existsSync(bundledTemplate)) {
+      try {
+        if (!fs.existsSync(PROJECT_DIR)) fs.mkdirSync(PROJECT_DIR, { recursive: true });
+        fs.copyFileSync(bundledTemplate, composePath);
+      } catch (err: any) {
+        console.warn('No se pudo copiar plantilla interna de docker-compose:', err.message);
+      }
+    }
+  }
+
+  if (!fs.existsSync(composePath)) {
     deploymentState.lastError = 'docker-compose.yml no encontrado';
     return false;
   }

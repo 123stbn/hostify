@@ -8,3 +8,6 @@
 - **Segregación de Ingesta**: Todo archivo de música descargado u organizado debe distribuirse en subcarpetas (`personal/`, `explo/`, `slskd/`, `torrents/`) dentro del directorio raíz montado en Navidrome como solo lectura (`:ro`).
 - **Archivos incompletos**: Las descargas temporales o en progreso (ej. torrents) se almacenan fuera de la ruta de escaneo de Navidrome para evitar corromper etiquetas ID3.
 - **Acceso Remoto**: Soporte integrado tanto para Tailscale (sidecar opcional) como para Proxies Reversos (Caddy / Nginx / Traefik / Cloudflare Tunnel).
+
+## Idioma del Código y Comentarios
+- **Comentarios en código siempre en inglés**: Todos los comentarios, docstrings y encabezados dentro de archivos de código fuente, Dockerfiles, scripts bash/powershell y configuraciones (YAML, JSON, XML, etc.) deben redactarse siempre en idioma inglés.

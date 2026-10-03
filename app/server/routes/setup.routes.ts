@@ -38,7 +38,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       PUID: String(payload.puid || 1000),
       PGID: String(payload.pgid || 10),
       TZ: payload.tz || 'America/Lima',
-      HOSTIFY_PORT: '3000',
+      HOSTIFY_PORT: String(payload.hostifyPort || currentEnv.HOSTIFY_PORT || '3500'),
       NAVIDROME_PORT: String(payload.navidromePort || 4533),
       FEISHIN_PORT: String(payload.feishinPort || currentEnv.FEISHIN_PORT || 9188),
       NAVIDROME_ADMIN_USER: payload.navidromeAdminUser || 'admin',

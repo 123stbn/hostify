@@ -339,7 +339,7 @@ TZ=${DETECTED_TZ}
 HOST_IP=${DETECTED_HOST_IP}
 HOST_HOSTNAME=${DETECTED_HOSTNAME}
 AVAHI_IFACE=${DETECTED_AVAHI_IFACE}
-HOSTIFY_PORT=3000
+HOSTIFY_PORT=3500
 NAVIDROME_PORT=4533
 FEISHIN_PORT=9188
 NAVIDROME_ADMIN_USER=admin
@@ -397,7 +397,7 @@ MDNS_HOSTNAME="${HOST_HOSTNAME:-hostify}"
 if [ "$PLATFORM" = "macos" ] && command -v dns-sd &>/dev/null; then
     echo -e "${COLOR_CYAN}==> Registering ${MDNS_HOSTNAME}.local with macOS Bonjour (mDNS)...${COLOR_RESET}"
 
-    HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3000}"
+    HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3500}"
     NAVIDROME_PORT_VAL="${NAVIDROME_PORT:-4533}"
 
     # Create a LaunchAgent plist that keeps dns-sd running at login
@@ -451,7 +451,7 @@ elif [ "$PLATFORM" = "linux" ]; then
     HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
 fi
 
-HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3000}"
+HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3500}"
 NAVIDROME_PORT_VAL="${NAVIDROME_PORT:-4533}"
 
 echo ""

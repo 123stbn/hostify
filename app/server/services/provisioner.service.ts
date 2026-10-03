@@ -155,8 +155,12 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       try { fs.mkdirSync(feishinProjectDir, { recursive: true }); } catch {}
     }
     const projectTemplateFile = path.join(feishinProjectDir, 'settings.js.template');
+    const bundledFeishinTemplate = path.join(process.cwd(), 'templates', 'feishin', 'settings.js.template');
+
     if (fs.existsSync(projectTemplateFile) && !fs.existsSync(feishinTemplatePath)) {
       try { fs.copyFileSync(projectTemplateFile, feishinTemplatePath); } catch {}
+    } else if (fs.existsSync(bundledFeishinTemplate) && !fs.existsSync(feishinTemplatePath)) {
+      try { fs.copyFileSync(bundledFeishinTemplate, feishinTemplatePath); } catch {}
     }
 
     if (!fs.existsSync(feishinTemplatePath)) {

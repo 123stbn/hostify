@@ -24,10 +24,11 @@ COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --prod --frozen-lockfile || pnpm install --prod
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/templates ./templates
 
 ENV NODE_ENV=production
-ENV HOSTIFY_PORT=3000
+ENV HOSTIFY_PORT=3500
 
-EXPOSE 3000
+EXPOSE 3500
 
 CMD ["node", "dist/server/index.js"]

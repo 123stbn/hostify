@@ -164,7 +164,7 @@ TZ=America/Lima
 HOST_IP=$HostIp
 HOST_HOSTNAME=hostify
 AVAHI_IFACE=eth0
-HOSTIFY_PORT=3000
+HOSTIFY_PORT=3500
 NAVIDROME_PORT=4533
 FEISHIN_PORT=9188
 NAVIDROME_ADMIN_USER=admin
@@ -202,10 +202,10 @@ Write-Host "  Hostify Appliance successfully deployed and ready!           " -Fo
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Abre el Setup Wizard en tu navegador:" -ForegroundColor White
-Write-Host "  mDNS (recomendado): http://hostify.local:3000" -ForegroundColor Cyan
-Write-Host "  Local:              http://localhost:3000" -ForegroundColor Cyan
+Write-Host "  mDNS (recomendado): http://hostify.local:3500" -ForegroundColor Cyan
+Write-Host "  Local:              http://localhost:3500" -ForegroundColor Cyan
 if ($HostIp -ne "127.0.0.1") {
-    Write-Host "  Red local (IP):     http://${HostIp}:3000" -ForegroundColor Cyan
+    Write-Host "  Red local (IP):     http://${HostIp}:3500" -ForegroundColor Cyan
 }
 Write-Host ""
 Write-Host "Nota: En Windows, hostify.local requiere Avahi (WSL2) o Bonjour (Print Services)." -ForegroundColor Yellow

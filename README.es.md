@@ -68,7 +68,7 @@ cd hostify
 ```
 
 Una vez desplegado, abre en tu navegador:
-👉 **`http://localhost:3000`** (o `http://<IP-DE-TU-SERVIDOR>:3000`) para iniciar el **Setup Wizard**.
+👉 **`http://hostify.local:3500`** (o `http://localhost:3500` / `http://<IP-DE-TU-SERVIDOR>:3500`) para iniciar el **Setup Wizard**.
 
 ---
 

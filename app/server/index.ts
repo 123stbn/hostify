@@ -7,7 +7,7 @@ import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
 import { autoConfigureIngestionServices, ensureProwlarrLidarrSetup } from './services/provisioner.service.js';
 
 export const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || process.env.HOSTIFY_PORT || 3500;
 
 app.use(cors());
 app.use(express.json());
