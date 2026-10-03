@@ -1,6 +1,14 @@
 "use strict";
 
 (function() {
+  // Auto-descartar el modal de "A new version has been installed" en Feishin Web
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("version", '"1.17.0"');
+      localStorage.setItem("version_dismissed", '"1.17.0"');
+    }
+  } catch (e) {}
+
   // Dynamically resolve reachable Navidrome URL based on client browser location
   var envUrl = "${SERVER_URL}";
   var ndPort = "${NAVIDROME_PORT}" || "4533";
