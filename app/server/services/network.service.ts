@@ -45,8 +45,11 @@ export function detectTailscale(): TailscaleStatus {
  */
 export function getHostAllowedAddresses(): string[] {
   const hosts = new Set<string>([
+    '*',
     'localhost',
     '127.0.0.1',
+    'hostify.local',
+    '*.local',
     'hostify-prowlarr',
     'hostify-lidarr',
     'host.docker.internal',
