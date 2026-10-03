@@ -940,9 +940,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: '500' }}>
                   {t('step4LocalReadyTitle')}
                 </p>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  {t('step4LocalReadyDesc')} <code>http://{status?.hostIp || '127.0.0.1'}:{navidromePort}</code>
-                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    Nombre fijo (mDNS): <code style={{ color: 'var(--accent-brass)' }}>http://{status?.localHostname || 'hostify.local'}:{navidromePort}</code>
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                    IP directa: <code>http://{status?.hostIp || '127.0.0.1'}:{navidromePort}</code>
+                  </p>
+                </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px' }}>
                   {t('step4TailscaleHint')}
                 </p>

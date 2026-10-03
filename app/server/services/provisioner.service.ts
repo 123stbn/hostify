@@ -144,10 +144,21 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       envData
     );
 
-    // 3. Feishin Zero-Config (Garantizar template de settings.js)
-    const feishinDir = path.join(PROJECT_DIR, 'docker', 'feishin');
-    if (!fs.existsSync(feishinDir)) fs.mkdirSync(feishinDir, { recursive: true });
-    const feishinTemplatePath = path.join(feishinDir, 'settings.js.template');
+    // 3. Feishin Zero-Config (Garantizar template de settings.js en DOCKER_DATA)
+    const feishinDataDir = path.join(dockerData, 'feishin');
+    if (!fs.existsSync(feishinDataDir)) fs.mkdirSync(feishinDataDir, { recursive: true });
+    const feishinTemplatePath = path.join(feishinDataDir, 'settings.js.template');
+
+    // Sincronizar también con PROJECT_DIR si existe
+    const feishinProjectDir = path.join(PROJECT_DIR, 'docker', 'feishin');
+    if (!fs.existsSync(feishinProjectDir)) {
+      try { fs.mkdirSync(feishinProjectDir, { recursive: true }); } catch {}
+    }
+    const projectTemplateFile = path.join(feishinProjectDir, 'settings.js.template');
+    if (fs.existsSync(projectTemplateFile) && !fs.existsSync(feishinTemplatePath)) {
+      try { fs.copyFileSync(projectTemplateFile, feishinTemplatePath); } catch {}
+    }
+
     if (!fs.existsSync(feishinTemplatePath)) {
       const templateContent = `"use strict";
 

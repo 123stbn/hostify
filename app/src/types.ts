@@ -37,6 +37,7 @@ export interface AppStatus {
   remoteAccess?: 'tailscale' | 'proxy' | 'local';
   domain?: string;
   hostIp: string;
+  localHostname?: string;
   detectedPuid?: string;
   detectedPgid?: string;
   detectedTz?: string;

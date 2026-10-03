@@ -140,6 +140,11 @@ if (-not (Test-Path "docker-compose.yml")) {
 # ------------------------------------------------------------------------------
 # 3. Initial .env Configuration for Windows
 # ------------------------------------------------------------------------------
+$HostIp = "127.0.0.1"
+try {
+    $HostIp = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch "vEthernet|Loopback|Docker" -and $_.IPAddress -notlike "169.254*" } | Select-Object -First 1).IPAddress
+} catch {}
+
 if (-not (Test-Path ".env")) {
     Write-Host "==> Generating initial configuration file (.env)..." -ForegroundColor Yellow
     
@@ -156,6 +161,9 @@ if (-not (Test-Path ".env")) {
 PUID=1000
 PGID=10
 TZ=America/Lima
+HOST_IP=$HostIp
+HOST_HOSTNAME=hostify
+AVAHI_IFACE=eth0
 HOSTIFY_PORT=3000
 NAVIDROME_PORT=4533
 FEISHIN_PORT=9188
@@ -193,8 +201,13 @@ Write-Host "================================================================" -F
 Write-Host "  Hostify Appliance successfully deployed and ready!           " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Open the Setup Wizard in your browser:" -ForegroundColor White
-Write-Host "  Local:        http://localhost:3000" -ForegroundColor Cyan
+Write-Host "Abre el Setup Wizard en tu navegador:" -ForegroundColor White
+Write-Host "  mDNS (recomendado): http://hostify.local:3000" -ForegroundColor Cyan
+Write-Host "  Local:              http://localhost:3000" -ForegroundColor Cyan
+if ($HostIp -ne "127.0.0.1") {
+    Write-Host "  Red local (IP):     http://${HostIp}:3000" -ForegroundColor Cyan
+}
 Write-Host ""
-Write-Host "Docker Desktop is configured to start automatically with Windows." -ForegroundColor Green
+Write-Host "Nota: En Windows, hostify.local requiere Avahi (WSL2) o Bonjour (Print Services)." -ForegroundColor Yellow
+Write-Host "Docker Desktop esta configurado para iniciarse automaticamente con Windows." -ForegroundColor Green
 Write-Host ""

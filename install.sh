@@ -313,6 +313,20 @@ elif [ "$PLATFORM" = "linux" ]; then
     fi
 fi
 
+# Host LAN IP and Hostname Detection
+DETECTED_HOST_IP="127.0.0.1"
+DETECTED_HOSTNAME="hostify"
+DETECTED_AVAHI_IFACE="eth0"
+if [ "$PLATFORM" = "macos" ]; then
+    DETECTED_HOST_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1")"
+    # En macOS la interfaz real suele ser en0 (WiFi) o en1 (Ethernet)
+    DETECTED_AVAHI_IFACE="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' | head -1 || echo "en0")"
+elif [ "$PLATFORM" = "linux" ]; then
+    DETECTED_HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
+    # Detectar interfaz con ruta default (eth0, ens3, enp3s0, wlan0, etc.)
+    DETECTED_AVAHI_IFACE="$(ip route show default 2>/dev/null | awk '/default/{print $5}' | head -1 || echo "eth0")"
+fi
+
 if [ ! -f .env ]; then
     echo -e "${COLOR_YELLOW}==> Generating initial configuration file (.env)...${COLOR_RESET}"
     cat << EOF > .env
@@ -322,6 +336,9 @@ if [ ! -f .env ]; then
 PUID=${DETECTED_PUID}
 PGID=${DETECTED_PGID}
 TZ=${DETECTED_TZ}
+HOST_IP=${DETECTED_HOST_IP}
+HOST_HOSTNAME=${DETECTED_HOSTNAME}
+AVAHI_IFACE=${DETECTED_AVAHI_IFACE}
 HOSTIFY_PORT=3000
 NAVIDROME_PORT=4533
 FEISHIN_PORT=9188
@@ -340,6 +357,17 @@ PROWLARR_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head
 EOF
     # Strict permissions to protect credentials from other users
     chmod 600 .env 2>/dev/null || true
+else
+    # Update HOST_IP in .env if not present or stale
+    if ! grep -q "^HOST_IP=" .env; then
+        echo "HOST_IP=${DETECTED_HOST_IP}" >> .env
+    elif [ "$DETECTED_HOST_IP" != "127.0.0.1" ]; then
+        sed -i.bak "s/^HOST_IP=.*/HOST_IP=${DETECTED_HOST_IP}/" .env && rm -f .env.bak
+    fi
+    # Update AVAHI_IFACE in .env if not present
+    if ! grep -q "^AVAHI_IFACE=" .env; then
+        echo "AVAHI_IFACE=${DETECTED_AVAHI_IFACE}" >> .env
+    fi
 fi
 
 # ------------------------------------------------------------------------------
@@ -357,7 +385,64 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# 8. Get Host IP and Show Welcome Message
+# 8. mDNS Registration: hostify.local
+# ------------------------------------------------------------------------------
+# Strategy:
+#   - macOS: Register with Bonjour (dns-sd) via a LaunchAgent — works with both
+#            Docker Desktop and Colima since it runs on the Mac itself.
+#   - Linux: Avahi sidecar in docker-compose handles this natively.
+# ------------------------------------------------------------------------------
+MDNS_HOSTNAME="${HOST_HOSTNAME:-hostify}"
+
+if [ "$PLATFORM" = "macos" ] && command -v dns-sd &>/dev/null; then
+    echo -e "${COLOR_CYAN}==> Registering ${MDNS_HOSTNAME}.local with macOS Bonjour (mDNS)...${COLOR_RESET}"
+
+    HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3000}"
+    NAVIDROME_PORT_VAL="${NAVIDROME_PORT:-4533}"
+
+    # Create a LaunchAgent plist that keeps dns-sd running at login
+    PLIST_DIR="${HOME}/Library/LaunchAgents"
+    PLIST_FILE="${PLIST_DIR}/com.hostify.mdns.plist"
+    mkdir -p "${PLIST_DIR}"
+
+    cat > "${PLIST_FILE}" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.hostify.mdns</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/dns-sd</string>
+        <string>-P</string>
+        <string>Hostify</string>
+        <string>_http._tcp</string>
+        <string>local</string>
+        <string>${HOSTIFY_PORT_VAL}</string>
+        <string>${MDNS_HOSTNAME}.local</string>
+        <string>127.0.0.1</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/hostify-mdns.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/hostify-mdns-err.log</string>
+</dict>
+</plist>
+PLIST
+
+    # Unload previous registration if exists, then load new one
+    launchctl unload "${PLIST_FILE}" 2>/dev/null || true
+    launchctl load -w "${PLIST_FILE}"
+    echo -e "${COLOR_GREEN}  ✓ ${MDNS_HOSTNAME}.local registered. Resolvable on this Mac and all LAN devices.${COLOR_RESET}"
+fi
+
+# ------------------------------------------------------------------------------
+# 9. Get Host IP and Show Welcome Message
 # ------------------------------------------------------------------------------
 HOST_IP="localhost"
 if [ "$PLATFORM" = "macos" ]; then
@@ -366,22 +451,26 @@ elif [ "$PLATFORM" = "linux" ]; then
     HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
 fi
 
+HOSTIFY_PORT_VAL="${HOSTIFY_PORT:-3000}"
+NAVIDROME_PORT_VAL="${NAVIDROME_PORT:-4533}"
+
 echo ""
 echo -e "${COLOR_GREEN}================================================================${COLOR_RESET}"
 echo -e "${COLOR_BOLD}${COLOR_GREEN}  Hostify Appliance successfully deployed and ready!           ${COLOR_RESET}"
 echo -e "${COLOR_GREEN}================================================================${COLOR_RESET}"
 echo ""
 echo -e "Open the Setup Wizard in your browser:"
-echo -e "  Local:        ${COLOR_CYAN}http://localhost:3000${COLOR_RESET}"
+echo -e "  ${COLOR_BOLD}mDNS (recomendado):${COLOR_RESET} ${COLOR_CYAN}http://${MDNS_HOSTNAME}.local:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
+echo -e "  Local:              ${COLOR_CYAN}http://localhost:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
 if [ "$HOST_IP" != "127.0.0.1" ] && [ "$HOST_IP" != "localhost" ]; then
-    echo -e "  Local Network:${COLOR_CYAN}http://${HOST_IP}:3000${COLOR_RESET}"
+    echo -e "  Red local (IP):     ${COLOR_CYAN}http://${HOST_IP}:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
 fi
 echo ""
-echo -e "The setup wizard will guide you to:"
-echo -e "  1. Select your music and data directories."
-echo -e "  2. Define master credentials and connect ListenBrainz."
-echo -e "  3. Choose ingestion downloaders (Explo, Slskd, Torrents, Lidarr)."
-echo -e "  4. Configure remote access with Tailscale or Reverse Proxy."
+echo -e "El wizard te guiará para:"
+echo -e "  1. Seleccionar tu directorio de música."
+echo -e "  2. Definir credenciales y conectar ListenBrainz."
+echo -e "  3. Elegir descargadores (Explo, Slskd, Torrents, Lidarr)."
+echo -e "  4. Configurar acceso remoto con Tailscale o Proxy Reverso."
 echo ""
-echo -e "${COLOR_GREEN}Your Docker engine is configured to start automatically with your operating system.${COLOR_RESET}"
+echo -e "${COLOR_GREEN}Docker está configurado para iniciarse automáticamente con tu sistema operativo.${COLOR_RESET}"
 echo ""

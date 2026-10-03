@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseEnv, ENV_FILE_PATH, CONFIG_FLAG_PATH } from '../utils/env.js';
 import { dockerClient } from '../services/docker.service.js';
-import { detectTailscale, getHostIp, getMemoryStats } from '../services/network.service.js';
+import { detectTailscale, getHostIp, getLocalHostname, getMemoryStats } from '../services/network.service.js';
 
 export const systemRouter = Router();
 
@@ -81,7 +81,8 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     modules: configuredModules,
     remoteAccess: remoteAccess || (currentEnv.BASE_URL ? 'proxy' : (ts.detected ? 'tailscale' : 'local')),
     domain: currentEnv.BASE_URL ? currentEnv.BASE_URL.replace(/^https?:\/\//, '') : '',
-    hostIp: getHostIp(),
+    hostIp: getHostIp(_req.headers.host),
+    localHostname: getLocalHostname(),
     detectedPuid: currentEnv.PUID || String(detectedPuid),
     detectedPgid: currentEnv.PGID || String(detectedPgid),
     detectedTz: currentEnv.TZ || detectedTz,

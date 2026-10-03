@@ -81,13 +81,40 @@ export function getHostAllowedAddresses(): string[] {
 }
 
 /**
- * Obtener la IP principal accesible del host
+ * Obtener el nombre de red mDNS local (.local) para acceso Zero-Config estilo homeassistant.local
  */
-export function getHostIp(): string {
-  if (process.env.HOST_IP) return process.env.HOST_IP;
+export function getLocalHostname(): string {
   try {
     const env = parseEnv(ENV_FILE_PATH);
-    if (env.HOST_IP) return env.HOST_IP;
+    if (env.HOST_HOSTNAME && env.HOST_HOSTNAME !== 'hostify') {
+      return `${env.HOST_HOSTNAME}.local`;
+    }
+  } catch {}
+
+  if (process.env.HOST_HOSTNAME && process.env.HOST_HOSTNAME !== 'hostify') {
+    return `${process.env.HOST_HOSTNAME}.local`;
+  }
+
+  return 'hostify.local';
+}
+
+/**
+ * Obtener la IP principal accesible del host
+ */
+export function getHostIp(reqHost?: string): string {
+  // 1. Si la petición web viene de una IP de red local (ej: el usuario abrió http://192.168.0.x:3000 desde el móvil/PC)
+  if (reqHost) {
+    const cleanHost = reqHost.split(':')[0].trim();
+    if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(cleanHost) && !cleanHost.startsWith('172.26.')) {
+      return cleanHost;
+    }
+  }
+
+  // 2. Variable explícita de entorno o archivo .env
+  if (process.env.HOST_IP && !process.env.HOST_IP.startsWith('172.26.')) return process.env.HOST_IP;
+  try {
+    const env = parseEnv(ENV_FILE_PATH);
+    if (env.HOST_IP && !env.HOST_IP.startsWith('172.26.')) return env.HOST_IP;
   } catch {}
 
   const nets = os.networkInterfaces();
@@ -102,7 +129,7 @@ export function getHostIp(): string {
 
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
-      if (net.family === 'IPv4' && !net.internal) {
+      if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('172.26.')) {
         return net.address;
       }
     }

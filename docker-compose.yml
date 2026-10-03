@@ -34,6 +34,7 @@ services:
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
       - HOST_IP=${HOST_IP:-}
+      - HOST_HOSTNAME=${HOST_HOSTNAME:-hostify}
       # HOST_HOME: exposes the real host home directory path to the wizard's
       # directory picker so it can browse /Users/… or /home/… on the host.
       - HOST_HOME=${HOME}
@@ -46,6 +47,33 @@ services:
       - ${MUSIC_ROOT:-/volume1/music}:/music
     networks:
       - hostify-net
+
+  # ----------------------------------------------------------------------------
+  # MDNS SIDECAR: AVAHI (ANUNCIA hostify.local EN LA RED LAN)
+  # ----------------------------------------------------------------------------
+  # Publica el nombre `hostify.local` (o ${HOST_HOSTNAME}.local) via mDNS/Bonjour
+  # para que cualquier dispositivo de la red acceda sin recordar la IP.
+  # Estándar idéntico al de homeassistant.local:8123.
+  #
+  # Requiere `network_mode: host` para enviar paquetes multicast en la red real.
+  # Compatible con macOS, Linux y Windows (WSL2/Docker Desktop en modo host net).
+  # ----------------------------------------------------------------------------
+  avahi:
+    image: flungo/avahi:latest
+    container_name: hostify-avahi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # Nombre que se anuncia en la red: hostify.local (o ${HOST_HOSTNAME}.local)
+      - SERVER_HOST_NAME=${HOST_HOSTNAME:-hostify}
+      - SERVER_DOMAIN_NAME=local
+      - SERVER_ENABLE_DBUS=no
+      - SERVER_USE_IPV4=yes
+      - SERVER_USE_IPV6=no
+      # Anunciar SOLO en la interfaz de red del host (no en bridges internos de Docker)
+      - SERVER_ALLOW_INTERFACES=${AVAHI_IFACE:-eth0}
+      - PUBLISH_PUBLISH_WORKSTATION=no
+      - PUBLISH_PUBLISH_HINFO=no
 
   # ----------------------------------------------------------------------------
   # NÚCLEO DE STREAMING: NAVIDROME (OPEN SUBSONIC API)
@@ -96,7 +124,7 @@ services:
       - ANALYTICS_DISABLED=true
       - FS_GENERAL_THEME=defaultDark
     volumes:
-      - ./docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
+      - ${DOCKER_DATA:-/volume1/docker}/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
     networks:
       - hostify-net
 
