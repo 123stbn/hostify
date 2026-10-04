@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Play, Square, RotateCw, ExternalLink, FileText, 
-  Globe, Radio, Music, DownloadCloud, 
+import {
+  Play, Square, RotateCw, ExternalLink, FileText,
+  Globe, Radio, Music, DownloadCloud,
   Server, Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
   Laptop, Smartphone, Sparkles, Headphones, Eye, EyeOff,
   ChevronDown, ChevronUp, Maximize2, Pause, SkipForward, SkipBack,
@@ -155,7 +155,7 @@ function getFriendlyComponentInfo(name: string, fallbackDesc: string, isEn: bool
   if (lower.includes('feishin')) {
     return {
       title: 'Feishin Web',
-      role: isEn 
+      role: isEn
         ? 'Daily browser listening room with live synchronized lyrics and lossless audio.'
         : 'Sala de escucha web diaria con letras en vivo y alta fidelidad.',
     };
@@ -244,25 +244,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const [platformFilter, setPlatformFilter] = useState<'all' | 'desktop' | 'android' | 'ios' | 'web'>('all');
   const [showPassword, setShowPassword] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingTrack | null>(null);
-  const [isDirectPlaying, setIsDirectPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const handleTogglePlay = () => {
-    if (!audioRef.current) return;
-    if (isDirectPlaying) {
-      audioRef.current.pause();
-      setIsDirectPlaying(false);
-    } else {
-      if (nowPlaying?.streamUrl && audioRef.current.src !== window.location.origin + nowPlaying.streamUrl) {
-        audioRef.current.src = nowPlaying.streamUrl;
-      }
-      audioRef.current.play().then(() => {
-        setIsDirectPlaying(true);
-      }).catch(err => {
-        console.warn('Playback error:', err);
-      });
-    }
-  };
 
   // Modales
   const [logsModal, setLogsModal] = useState<{ open: boolean; containerName: string; logs: string }>({
@@ -494,7 +475,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const localHost = currentBrowserHost || networkHostIp || 'localhost';
 
   const hostifyGatewayPort = status?.hostifyPort || window.location.port || '3500';
-  const subsonicUrl = status?.domain 
+  const subsonicUrl = status?.domain
     ? (status.domain.startsWith('http') ? status.domain : `https://${status.domain}`)
     : `http://${networkHostIp}:${hostifyGatewayPort}`;
 
@@ -612,7 +593,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
 
       {/* Navegación por Pestañas (Subrayado limpio, sin cajas) */}
       <nav className="tabs-nav">
-        <button 
+        <button
           id="tab-btn-listen"
           className={`tab-btn ${activeTab === 'listen' ? 'active' : ''}`}
           onClick={() => setActiveTab('listen')}
@@ -620,7 +601,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           <Headphones size={15} />
           <span>{t('tabListen')}</span>
         </button>
-        <button 
+        <button
           id="tab-btn-tools"
           className={`tab-btn ${activeTab === 'tools' ? 'active' : ''}`}
           onClick={() => setActiveTab('tools')}
@@ -628,7 +609,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           <Layers size={15} />
           <span>{t('tabTools')}</span>
         </button>
-        <button 
+        <button
           id="tab-btn-storage"
           className={`tab-btn ${activeTab === 'storage' ? 'active' : ''}`}
           onClick={() => setActiveTab('storage')}
@@ -636,7 +617,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           <Folder size={15} />
           <span>{t('tabStorage')}</span>
         </button>
-        <button 
+        <button
           id="tab-btn-apps"
           className={`tab-btn ${activeTab === 'apps' ? 'active' : ''}`}
           onClick={() => setActiveTab('apps')}
@@ -644,7 +625,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           <Smartphone size={15} />
           <span>{t('tabApps')}</span>
         </button>
-        <button 
+        <button
           id="tab-btn-remote"
           className={`tab-btn ${activeTab === 'remote' ? 'active' : ''}`}
           onClick={() => setActiveTab('remote')}
@@ -657,70 +638,105 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
       {/* PESTAÑA 1: ESCUCHAR (Directo, amplio, sin sobrecarga) */}
       {activeTab === 'listen' && (
         <div style={{ maxWidth: '820px' }}>
-          {/* Barra de Controles Rápidos de Reproducción (Flat & Minimalist) */}
-          {isFeishinRunning && (
-            <div className="compact-player-bar">
-              <div className="compact-player-track">
-                <div className="compact-player-thumb">
-                  {nowPlaying?.coverArtUrl ? (
-                    <img src={nowPlaying.coverArtUrl} alt={nowPlaying.album || 'Cover'} />
-                  ) : (
-                    <Disc3 size={20} className={nowPlaying ? 'spin' : ''} />
-                  )}
-                </div>
-                <div className="compact-player-meta">
-                  <div className="compact-player-title" title={nowPlaying ? nowPlaying.title : t('compactPlayerReady')}>
-                    {nowPlaying ? nowPlaying.title : t('compactPlayerReady')}
-                  </div>
-                  <div className="compact-player-artist">
-                    {nowPlaying ? (
-                      <>
-                        <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{nowPlaying.artist}</span>
-                        {nowPlaying.album && <span> • {nowPlaying.album}</span>}
-                        {nowPlaying.playerName && (
-                          <span style={{ color: 'var(--accent-brass)', marginLeft: '6px', fontSize: '0.7rem' }}>
-                            ({t('compactPlayerFrom')} {nowPlaying.playerName})
-                          </span>
-                        )}
-                      </>
+          {/* Barra de Controles Rápidos de Reproducción (Stitch Hi-Fi Audio Player) */}
+          {isFeishinRunning && (() => {
+            const isTrackPlaying = Boolean(
+              nowPlaying &&
+              nowPlaying.state === 'playing' &&
+              (nowPlaying.minutesAgo === undefined || nowPlaying.minutesAgo === 0)
+            );
+            const isTrackPaused = Boolean(
+              nowPlaying &&
+              (nowPlaying.state === 'paused' || (nowPlaying.minutesAgo !== undefined && nowPlaying.minutesAgo > 0))
+            );
+
+            return (
+              <div className="compact-player-bar">
+                <div className="compact-player-track">
+                  <div
+                    className="compact-player-thumb"
+                    onClick={openFeishinWindow}
+                    title={t('compactPlayerLaunch')}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {nowPlaying?.coverArtUrl ? (
+                      <img src={nowPlaying.coverArtUrl} alt={nowPlaying.album || 'Cover'} />
                     ) : (
-                      t('compactPlayerHint')
+                      <Disc3 size={34} className={isTrackPlaying ? 'spin' : ''} style={{ opacity: 0.65 }} />
                     )}
                   </div>
+
+                  <div className="compact-player-meta">
+                    {/* Badges Row */}
+                    <div className="hifi-badges-row">
+                      <span className={`hifi-badge ${isTrackPlaying ? 'hifi-badge-emerald' : isTrackPaused ? 'hifi-badge-paused' : 'hifi-badge-standby'}`}>
+                        {isTrackPlaying ? t('playerStatePlaying') : isTrackPaused ? t('playerStatePaused') : t('playerStateStandby')}
+                      </span>
+                    </div>
+
+                    {/* Title */}
+                    <div className="compact-player-title" title={nowPlaying ? nowPlaying.title : t('compactPlayerReady')}>
+                      {nowPlaying ? nowPlaying.title : t('compactPlayerReady')}
+                    </div>
+
+                    {/* Artist & Album */}
+                    <div className="compact-player-artist">
+                      {nowPlaying ? (
+                        <>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{nowPlaying.artist}</span>
+                          {nowPlaying.album && <span> • {nowPlaying.album}</span>}
+                          {nowPlaying.playerName && (
+                            <span style={{ color: 'var(--accent-primary)', marginLeft: '6px', fontSize: '0.74rem' }}>
+                              ({t('compactPlayerFrom')} {nowPlaying.playerName})
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        t('compactPlayerHint')
+                      )}
+                    </div>
+
+                    {/* Sub-row: Animated Equalizer & Direct Buffer Status */}
+                    <div className="hifi-audio-status">
+                      <div className="hifi-equalizer" title={isTrackPlaying ? 'ALSA Direct Pipeline (Playing)' : isTrackPaused ? 'Audio Buffer (Paused)' : 'Audio Pipeline (Standby)'}>
+                        <div className="hifi-eq-group">
+                          <span className={`hifi-eq-bar ${isTrackPlaying ? 'animating' : 'idle'}`} style={{ height: isTrackPlaying ? '7px' : '4px' }} />
+                          <span className={`hifi-eq-bar ${isTrackPlaying ? 'animating' : 'idle'}`} style={{ height: isTrackPlaying ? '14px' : '6px' }} />
+                          <span className={`hifi-eq-bar ${isTrackPlaying ? 'animating' : 'idle'}`} style={{ height: isTrackPlaying ? '9px' : '4px' }} />
+                        </div>
+                        <div className="hifi-eq-group">
+                          <span className={`hifi-eq-bar ${isTrackPlaying ? 'animating' : 'idle'}`} style={{ height: isTrackPlaying ? '11px' : '5px', background: isTrackPlaying ? '#10B981' : '#64748B' }} />
+                          <span className={`hifi-eq-bar ${isTrackPlaying ? 'animating' : 'idle'}`} style={{ height: isTrackPlaying ? '13px' : '5px', background: isTrackPlaying ? '#10B981' : '#64748B' }} />
+                        </div>
+                      </div>
+                      <span className="hifi-status-text">
+                        {isTrackPlaying
+                          ? t('playerBufferPlaying')
+                          : isTrackPaused
+                            ? t('playerBufferPaused')
+                            : t('playerBufferStandby')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Section: Launch Feishin Button */}
+                <div className="compact-player-actions">
+                  <a
+                    href={feishinUrl}
+                    target="hostify_feishin_player"
+                    rel="noreferrer"
+                    onClick={openFeishinWindow}
+                    className="btn-stitch-feishin"
+                    title={t('compactPlayerLaunch')}
+                  >
+                    <ExternalLink size={15} />
+                    <span>{t('compactPlayerLaunch')}</span>
+                  </a>
                 </div>
               </div>
-
-              <div className="compact-player-controls">
-                <button
-                  type="button"
-                  onClick={handleTogglePlay}
-                  className="compact-control-btn play-btn"
-                  title={isDirectPlaying ? t('compactPlayerPause') : t('compactPlayerPlay')}
-                >
-                  {isDirectPlaying ? (
-                    <Pause size={15} fill="currentColor" />
-                  ) : (
-                    <Play size={15} fill="currentColor" style={{ marginLeft: '2px' }} />
-                  )}
-                </button>
-              </div>
-
-              <div className="compact-player-actions">
-                <a
-                  href={feishinUrl}
-                  target="hostify_feishin_player"
-                  rel="noreferrer"
-                  onClick={openFeishinWindow}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.74rem', padding: '3px 10px' }}
-                  title={t('compactPlayerLaunch')}
-                >
-                  <ExternalLink size={12} />
-                  <span>{t('compactPlayerLaunch')}</span>
-                </a>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Widget de Métricas de Fonoteca & Curador Explo */}
           <div className="library-curator-widget">
@@ -1102,8 +1118,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                           </a>
                         )}
                         {isRunning ? (
-                          <button 
-                            className="btn btn-secondary btn-sm" 
+                          <button
+                            className="btn btn-secondary btn-sm"
                             onClick={() => handleAction(c.name, 'stop')}
                             title={t('pauseBtn')}
                             disabled={!status?.dockerAvailable}
@@ -1112,8 +1128,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                             <span>{t('pauseBtn')}</span>
                           </button>
                         ) : (
-                          <button 
-                            className="btn btn-secondary btn-sm" 
+                          <button
+                            className="btn btn-secondary btn-sm"
                             onClick={c.state === 'not_created' ? handleStartDeploy : () => handleAction(c.name, 'start')}
                             title={t('startBtn')}
                             disabled={!status?.dockerAvailable}
@@ -1123,8 +1139,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                           </button>
                         )}
 
-                        <button 
-                          className="btn btn-secondary btn-sm" 
+                        <button
+                          className="btn btn-secondary btn-sm"
                           onClick={() => handleAction(c.name, 'restart')}
                           title={t('restartBtn')}
                           disabled={!status?.dockerAvailable || c.state === 'not_created'}
@@ -1132,8 +1148,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                           <RotateCw size={11} />
                         </button>
 
-                        <button 
-                          className="btn btn-secondary btn-sm" 
+                        <button
+                          className="btn btn-secondary btn-sm"
                           onClick={c.state === 'not_created' ? handleOpenDeployLogs : () => handleOpenLogs(c.name)}
                           title={t('viewLogsBtn')}
                         >
@@ -1351,7 +1367,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               )}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              {status?.tailscaleDetected 
+              {status?.tailscaleDetected
                 ? t('tailscaleReadyDesc')
                 : t('tailscaleMissingDesc')}
             </p>
@@ -1364,10 +1380,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
             </h3>
             <div className="form-group" style={{ maxWidth: '400px', marginTop: '12px' }}>
               <label className="form-label">{t('yourDomain')}</label>
-              <input 
-                type="text" 
-                className="form-input" 
-                value={proxyDomain} 
+              <input
+                type="text"
+                className="form-input"
+                value={proxyDomain}
                 onChange={e => setProxyDomain(e.target.value)}
                 placeholder={defaultPlaceholderDomain}
               />
@@ -1376,8 +1392,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
             <div style={{ marginTop: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('caddyConfigTitle')}</span>
-                <button 
-                  className="btn btn-secondary btn-sm" 
+                <button
+                  className="btn btn-secondary btn-sm"
                   onClick={() => proxySnippets && copyToClipboard(proxySnippets.caddy, 'caddy')}
                   style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                 >
@@ -1399,8 +1415,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               <h3 style={{ fontSize: '0.95rem', fontWeight: '600' }}>
                 {t('activityTitle')} {logsModal.containerName}
               </h3>
-              <button 
-                className="btn btn-secondary btn-icon btn-sm" 
+              <button
+                className="btn btn-secondary btn-icon btn-sm"
                 onClick={() => setLogsModal({ open: false, containerName: '', logs: '' })}
               >
                 <X size={14} />
@@ -1426,8 +1442,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                   {deployModal.isDeploying ? t('deployStateInProgress') : t('deployStateDone')}
                 </p>
               </div>
-              <button 
-                className="btn btn-secondary btn-icon btn-sm" 
+              <button
+                className="btn btn-secondary btn-icon btn-sm"
                 onClick={() => setDeployModal(prev => ({ ...prev, open: false }))}
               >
                 <X size={14} />
@@ -1454,8 +1470,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                   <span>{t('retry')}</span>
                 </button>
               )}
-              <button 
-                className="btn btn-secondary btn-sm" 
+              <button
+                className="btn btn-secondary btn-sm"
                 onClick={() => setDeployModal(prev => ({ ...prev, open: false }))}
               >
                 {t('close')}
@@ -1464,13 +1480,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           </div>
         </div>
       )}
-
-      <audio
-        ref={audioRef}
-        onEnded={() => setIsDirectPlaying(false)}
-        onPause={() => setIsDirectPlaying(false)}
-        onPlay={() => setIsDirectPlaying(true)}
-      />
     </div>
   );
 };

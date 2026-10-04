@@ -9,6 +9,7 @@
 .hostify_configured*
 .hostify_license*
 .hostify_state*
+docker-compose.override.yml
 scripts/keys/*private*
 *.pem
 

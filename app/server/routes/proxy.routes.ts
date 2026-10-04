@@ -4,11 +4,11 @@ import fs from 'node:fs';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
 
 // Helper to resolve internal container DNS or localhost
-export function resolveServiceTarget(serviceName: string, defaultPort: number): string {
+export function resolveServiceTarget(serviceName: string, defaultPort: number, hostDevPort?: number): string {
   if (fs.existsSync('/.dockerenv') || process.env.CONTAINER === 'true') {
     return `http://${serviceName}:${defaultPort}`;
   }
-  return `http://127.0.0.1:${defaultPort}`;
+  return `http://127.0.0.1:${hostDevPort ?? defaultPort}`;
 }
 
 // Resolve Navidrome upstream target URL
@@ -45,7 +45,7 @@ export const navidromeProxyMiddleware = createProxyMiddleware({
 // Feishin web client proxy
 export const feishinProxyMiddleware = createProxyMiddleware({
   pathFilter: '/feishin/**',
-  router: () => resolveServiceTarget('feishin', 9180),
+  router: () => resolveServiceTarget('feishin', 9180, Number(process.env.FEISHIN_HOST_PORT) || 9182),
   pathRewrite: { '^/feishin': '' },
   changeOrigin: true,
   ws: true

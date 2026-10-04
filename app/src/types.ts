@@ -74,8 +74,14 @@ export interface NowPlayingTrack {
   streamUrl?: string;
   duration?: number;
   positionMs?: number;
+  minutesAgo?: number;
   playerName?: string;
   state?: 'playing' | 'paused' | 'stopped';
+  suffix?: string;
+  bitRate?: number;
+  samplingRate?: number;
+  bitDepth?: number;
+  contentType?: string;
 }
 
 export interface NowPlayingResponse {

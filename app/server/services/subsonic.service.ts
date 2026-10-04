@@ -170,8 +170,23 @@ export async function getNowPlaying(): Promise<{ active: boolean; track: NowPlay
     const entries = data?.['subsonic-response']?.nowPlaying?.entry;
     if (entries && Array.isArray(entries) && entries.length > 0) {
       const current = entries[0];
+      const minutesAgo = typeof current.minutesAgo === 'number' ? current.minutesAgo : 0;
+      
+      const rawState = String(current.state || current.playerState || current.status || '').toLowerCase();
+      let state: 'playing' | 'paused' | 'stopped' = 'playing';
+
+      if (rawState === 'paused' || rawState === 'pause') {
+        state = 'paused';
+      } else if (rawState === 'stopped' || rawState === 'stop') {
+        state = 'stopped';
+      } else if (minutesAgo > 0) {
+        state = 'paused';
+      } else if (rawState === 'playing' || rawState === 'play') {
+        state = 'playing';
+      }
+
       return {
-        active: true,
+        active: state === 'playing',
         track: {
           id: current.id,
           title: current.title || 'Desconocido',
@@ -182,8 +197,14 @@ export async function getNowPlaying(): Promise<{ active: boolean; track: NowPlay
           streamUrl: `/api/stream?id=${encodeURIComponent(current.id)}`,
           duration: current.duration || 0,
           positionMs: current.positionMs || 0,
+          minutesAgo,
           playerName: current.playerName || 'Feishin',
-          state: current.state || 'playing',
+          state,
+          suffix: current.suffix,
+          bitRate: current.bitRate,
+          samplingRate: current.samplingRate,
+          bitDepth: current.bitDepth,
+          contentType: current.contentType,
         }
       };
     }

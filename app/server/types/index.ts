@@ -59,7 +59,13 @@ export interface NowPlayingTrack {
   positionMs?: number;
   playerName?: string;
   playedAt?: string;
-  state?: string;
+  minutesAgo?: number;
+  state?: 'playing' | 'paused' | 'stopped';
+  suffix?: string;
+  bitRate?: number;
+  samplingRate?: number;
+  bitDepth?: number;
+  contentType?: string;
 }
 
 export interface DirectoryItem {
