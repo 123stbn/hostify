@@ -148,7 +148,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [tokenValidationState, setTokenValidationState] = useState<'idle' | 'loading' | 'valid' | 'invalid'>('idle');
 
-  // Fuentes de música
+  // Music sources
   const [modules, setModules] = useState<{
     explo: boolean;
     slskd: boolean;
@@ -184,7 +184,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     return raw;
   });
 
-  // Acceso remoto
+  // Remote access
   const [remoteMode, setRemoteMode] = useState<'local' | 'tailscale' | 'proxy'>(
     draft?.remoteAccess ?? (status?.tailscaleDetected ? 'tailscale' : 'local')
   );
@@ -252,7 +252,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     }
   };
 
-  // Sincronizar con el estado detectado del servidor si no había un borrador previo guardado
+  // Synchronize with detected server state if no prior draft was saved
   React.useEffect(() => {
     if (!draft && status) {
       if (status.musicRoot && status.musicRoot !== '/volume1/music') {
@@ -264,7 +264,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     }
   }, [status, draft]);
 
-  // Autoguardado
+  // Auto-save draft
   React.useEffect(() => {
     try {
       const stateToSave = {

@@ -245,7 +245,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const [showPassword, setShowPassword] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<NowPlayingTrack | null>(null);
 
-  // Modales
+  // Modals
   const [logsModal, setLogsModal] = useState<{ open: boolean; containerName: string; logs: string }>({
     open: false,
     containerName: '',
@@ -280,7 +280,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
       if (sRes.ok) setSysStats(await sRes.json());
       if (dRes.ok) setStorage(await dRes.json());
     } catch (err) {
-      console.error('Error al actualizar:', err);
+      console.error('Error refreshing data:', err);
     } finally {
       setLoading(false);
     }
@@ -292,7 +292,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     return () => clearInterval(interval);
   }, []);
 
-  // Sincronización en vivo del reproductor (Feishin / OpenSubsonic)
+  // Live playback synchronization (Feishin / OpenSubsonic)
   useEffect(() => {
     const fetchNowPlaying = async () => {
       try {
@@ -306,7 +306,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           }
         }
       } catch {
-        // Ignorar errores transitorios de red
+        // Ignore transient network errors
       }
     };
 
@@ -336,7 +336,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
           });
         }
       } catch {
-        // Red desconectada temporalmente
+        // Network temporarily disconnected
       }
     };
 
@@ -466,7 +466,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const currentBrowserHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '';
   const detectedHost = sysStats?.hostIp || status?.hostIp || '127.0.0.1';
 
-  // IP accesible en la red local (para clientes externos en celulares, tablets, etc.)
+  // Accessible LAN IP for external clients (smartphones, tablets, streamers)
   const networkHostIp = (detectedHost && detectedHost !== '127.0.0.1' && detectedHost !== 'localhost')
     ? detectedHost
     : (currentBrowserHost && currentBrowserHost !== 'localhost' && currentBrowserHost !== '127.0.0.1' ? currentBrowserHost : '127.0.0.1');

@@ -34,25 +34,25 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
 
   const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
   if (!fs.existsSync(composePath)) {
-    // Si no existe en PROJECT_DIR (despliegues standalone o portainer sin git),
-    // copiar la plantilla interna empaquetada
+    // If not found in PROJECT_DIR (standalone or Portainer deployments without Git),
+    // copy the bundled internal template
     const bundledTemplate = path.join(process.cwd(), 'templates', 'docker-compose.yml');
     if (fs.existsSync(bundledTemplate)) {
       try {
         if (!fs.existsSync(PROJECT_DIR)) fs.mkdirSync(PROJECT_DIR, { recursive: true });
         fs.copyFileSync(bundledTemplate, composePath);
       } catch (err: any) {
-        console.warn('No se pudo copiar plantilla interna de docker-compose:', err.message);
+        console.warn('Could not copy internal docker-compose template:', err.message);
       }
     }
   }
 
   if (!fs.existsSync(composePath)) {
-    deploymentState.lastError = 'docker-compose.yml no encontrado';
+    deploymentState.lastError = 'docker-compose.yml not found';
     return false;
   }
 
-  // Leer configuración de módulos activos
+  // Read active modules configuration
   let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler'];
   let modulesActive: Record<string, boolean> = {};
   if (fs.existsSync(CONFIG_FLAG_PATH)) {
@@ -72,7 +72,7 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
     modulesActive = { explo: true, slskd: true, qbittorrent: true, prowlarr: true, lidarr: true };
   }
 
-  // Pre-configurar Explo (.env y config) para saltar automáticamente su Wizard
+  // Pre-configure Explo (.env and config) to automatically bypass its setup wizard
   if (modulesActive.explo) {
     try {
       const env = parseEnv(ENV_FILE_PATH);

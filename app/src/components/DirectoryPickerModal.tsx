@@ -35,7 +35,7 @@ export const DirectoryPickerModal: React.FC<DirectoryPickerModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Nueva carpeta state
+  // New folder creation state
   const [showNewFolderInput, setShowNewFolderInput] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [creatingFolder, setCreatingFolder] = useState(false);

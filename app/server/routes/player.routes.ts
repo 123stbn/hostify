@@ -3,13 +3,13 @@ import { getNowPlaying, getCoverArt, getAudioStream } from '../services/subsonic
 
 export const playerRouter = Router();
 
-// Estado de Reproducción en Vivo (Now Playing desde Navidrome)
+// Live Playback State (Now Playing from Navidrome)
 playerRouter.get('/now-playing', async (_req: Request, res: Response) => {
   const result = await getNowPlaying();
   res.json(result);
 });
 
-// Proxy de Carátula de Álbum desde Navidrome
+// Album Cover Art Proxy from Navidrome
 playerRouter.get('/cover-art', async (req: Request, res: Response) => {
   const artId = req.query.id as string;
   if (!artId) return res.status(400).send('Missing id');
@@ -28,7 +28,7 @@ playerRouter.get('/cover-art', async (req: Request, res: Response) => {
   }
 });
 
-// Proxy de Transmisión de Audio para el widget del Dashboard
+// Audio Stream Proxy for Dashboard Hi-Fi widget
 playerRouter.get('/stream', async (req: Request, res: Response) => {
   const songId = req.query.id as string;
   if (!songId) return res.status(400).send('Missing song id');

@@ -5,10 +5,10 @@ import { TailscaleStatus } from '../types/index.js';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
 
 /**
- * Detección automática y rigurosa de Tailscale en el sistema
+ * Automatic and rigorous detection of Tailscale on the system
  */
 export function detectTailscale(): TailscaleStatus {
-  // 1. Intentar consultar el CLI nativo de Tailscale si está instalado (Linux / macOS)
+  // 1. Try querying native Tailscale CLI if installed (Linux / macOS)
   try {
     const tailscaleBin = fs.existsSync('/Applications/Tailscale.app/Contents/MacOS/Tailscale')
       ? '/Applications/Tailscale.app/Contents/MacOS/Tailscale'
@@ -23,7 +23,7 @@ export function detectTailscale(): TailscaleStatus {
     }
   } catch {}
 
-  // 2. Inspeccionar interfaces de red (descartando 100.64.0.1 que es la puerta de enlace/bucle virtual de macOS NetworkExtension inactiva)
+  // 2. Inspect network interfaces (discarding 100.64.0.1 which is macOS inactive NetworkExtension virtual loopback)
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
@@ -41,7 +41,7 @@ export function detectTailscale(): TailscaleStatus {
 }
 
 /**
- * Obtener lista completa de hostnames e IPs del host para AllowedHosts en Servarr (Prowlarr/Lidarr)
+ * Get complete list of hostnames and host IPs for AllowedHosts in Servarr (Prowlarr/Lidarr)
  */
 export function getHostAllowedAddresses(): string[] {
   const hosts = new Set<string>([
@@ -84,7 +84,7 @@ export function getHostAllowedAddresses(): string[] {
 }
 
 /**
- * Obtener el nombre de red mDNS local (.local) para acceso Zero-Config estilo homeassistant.local
+ * Get local mDNS network hostname (.local) for Zero-Config access
  */
 export function getLocalHostname(): string {
   try {
@@ -102,10 +102,10 @@ export function getLocalHostname(): string {
 }
 
 /**
- * Obtener la IP principal accesible del host
+ * Get primary accessible host IP
  */
 export function getHostIp(reqHost?: string): string {
-  // 1. Si la petición web viene de una IP de red local (ej: el usuario abrió http://192.168.0.x:3000 desde el móvil/PC)
+  // 1. If web request comes from a LAN IP (e.g. user opened http://192.168.0.x:3000 from mobile/PC)
   if (reqHost) {
     const cleanHost = reqHost.split(':')[0].trim();
     if (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(cleanHost) && !cleanHost.startsWith('172.26.')) {
@@ -113,7 +113,7 @@ export function getHostIp(reqHost?: string): string {
     }
   }
 
-  // 2. Variable explícita de entorno o archivo .env
+  // 2. Explicit environment variable or .env file
   if (process.env.HOST_IP && !process.env.HOST_IP.startsWith('172.26.')) return process.env.HOST_IP;
   try {
     const env = parseEnv(ENV_FILE_PATH);
@@ -121,7 +121,7 @@ export function getHostIp(reqHost?: string): string {
   } catch {}
 
   const nets = os.networkInterfaces();
-  // Preferir IPs de LAN (192.168.x.x o 10.x.x.x fuera de docker)
+  // Prefer LAN IPs (192.168.x.x or 10.x.x.x outside docker bridge)
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
       if (net.family === 'IPv4' && !net.internal && !net.address.startsWith('172.') && !net.address.startsWith('10.')) {
@@ -142,7 +142,7 @@ export function getHostIp(reqHost?: string): string {
 }
 
 /**
- * Estadísticas de memoria RAM del sistema
+ * System RAM memory statistics
  */
 export function getMemoryStats(): { totalMb: number; usedMb: number; freeMb: number; percent: number } {
   const total = os.totalmem();
@@ -168,7 +168,7 @@ export function getMemoryStats(): { totalMb: number; usedMb: number; freeMb: num
 }
 
 /**
- * Generador de Snippets para Proxy Reverso
+ * Reverse Proxy Snippet Generator
  */
 export function generateProxySnippets(domain: string = 'musica.tu-dominio.com', naviPort: string = '4533') {
   const caddy = `${domain} {\n    reverse_proxy hostify-navidrome:${naviPort}\n}`;

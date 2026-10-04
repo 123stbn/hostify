@@ -201,13 +201,13 @@ Write-Host "================================================================" -F
 Write-Host "  Hostify Appliance successfully deployed and ready!           " -ForegroundColor Green
 Write-Host "================================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Abre el Setup Wizard en tu navegador:" -ForegroundColor White
-Write-Host "  mDNS (recomendado): http://hostify.local:3500" -ForegroundColor Cyan
+Write-Host "Open the Setup Wizard in your browser:" -ForegroundColor White
+Write-Host "  mDNS (recommended): http://hostify.local:3500" -ForegroundColor Cyan
 Write-Host "  Local:              http://localhost:3500" -ForegroundColor Cyan
 if ($HostIp -ne "127.0.0.1") {
-    Write-Host "  Red local (IP):     http://${HostIp}:3500" -ForegroundColor Cyan
+    Write-Host "  LAN Network (IP):   http://${HostIp}:3500" -ForegroundColor Cyan
 }
 Write-Host ""
-Write-Host "Nota: En Windows, hostify.local requiere Avahi (WSL2) o Bonjour (Print Services)." -ForegroundColor Yellow
-Write-Host "Docker Desktop esta configurado para iniciarse automaticamente con Windows." -ForegroundColor Green
+Write-Host "Note: On Windows, hostify.local requires Avahi (WSL2) or Bonjour (Print Services)." -ForegroundColor Yellow
+Write-Host "Docker Desktop is configured to start automatically with Windows." -ForegroundColor Green
 Write-Host ""

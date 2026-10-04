@@ -319,11 +319,11 @@ DETECTED_HOSTNAME="hostify"
 DETECTED_AVAHI_IFACE="eth0"
 if [ "$PLATFORM" = "macos" ]; then
     DETECTED_HOST_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1")"
-    # En macOS la interfaz real suele ser en0 (WiFi) o en1 (Ethernet)
+    # On macOS, the real interface is usually en0 (WiFi) or en1 (Ethernet)
     DETECTED_AVAHI_IFACE="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' | head -1 || echo "en0")"
 elif [ "$PLATFORM" = "linux" ]; then
     DETECTED_HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
-    # Detectar interfaz con ruta default (eth0, ens3, enp3s0, wlan0, etc.)
+    # Detect interface with default route (eth0, ens3, enp3s0, wlan0, etc.)
     DETECTED_AVAHI_IFACE="$(ip route show default 2>/dev/null | awk '/default/{print $5}' | head -1 || echo "eth0")"
 fi
 
@@ -460,17 +460,17 @@ echo -e "${COLOR_BOLD}${COLOR_GREEN}  Hostify Appliance successfully deployed an
 echo -e "${COLOR_GREEN}================================================================${COLOR_RESET}"
 echo ""
 echo -e "Open the Setup Wizard in your browser:"
-echo -e "  ${COLOR_BOLD}mDNS (recomendado):${COLOR_RESET} ${COLOR_CYAN}http://${MDNS_HOSTNAME}.local:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
+echo -e "  ${COLOR_BOLD}mDNS (recommended):${COLOR_RESET} ${COLOR_CYAN}http://${MDNS_HOSTNAME}.local:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
 echo -e "  Local:              ${COLOR_CYAN}http://localhost:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
 if [ "$HOST_IP" != "127.0.0.1" ] && [ "$HOST_IP" != "localhost" ]; then
-    echo -e "  Red local (IP):     ${COLOR_CYAN}http://${HOST_IP}:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
+    echo -e "  LAN Network (IP):   ${COLOR_CYAN}http://${HOST_IP}:${HOSTIFY_PORT_VAL}${COLOR_RESET}"
 fi
 echo ""
-echo -e "El wizard te guiará para:"
-echo -e "  1. Seleccionar tu directorio de música."
-echo -e "  2. Definir credenciales y conectar ListenBrainz."
-echo -e "  3. Elegir descargadores (Explo, Slskd, Torrents, Lidarr)."
-echo -e "  4. Configurar acceso remoto con Tailscale o Proxy Reverso."
+echo -e "The setup wizard will guide you to:"
+echo -e "  1. Select your root music directory."
+echo -e "  2. Configure admin credentials and connect ListenBrainz."
+echo -e "  3. Select automated downloaders (Explo, Slskd, Torrents, Lidarr)."
+echo -e "  4. Set up remote access with Tailscale or Reverse Proxy."
 echo ""
-echo -e "${COLOR_GREEN}Docker está configurado para iniciarse automáticamente con tu sistema operativo.${COLOR_RESET}"
+echo -e "${COLOR_GREEN}Docker is configured to start automatically with your operating system.${COLOR_RESET}"
 echo ""

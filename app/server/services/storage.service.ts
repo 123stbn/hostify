@@ -80,9 +80,9 @@ export async function getStorageStatus() {
     fileCount: personalCount
   };
 
-  // Si se detectan archivos nuevos o modificados, auto-disparar escaneo en Navidrome
+  // If new or modified tracks are detected, trigger auto-scan in Navidrome
   if (lastKnownTrackCount !== -1 && lastKnownTrackCount !== totalFiles) {
-    console.log(`[Hostify Storage] Conteo de pistas cambió de ${lastKnownTrackCount} a ${totalFiles}. Auto-escaneando Navidrome...`);
+    console.log(`[Hostify Storage] Track count changed from ${lastKnownTrackCount} to ${totalFiles}. Triggering Navidrome library scan...`);
     triggerNavidromeScan().catch(() => {});
   }
   lastKnownTrackCount = totalFiles;
@@ -96,7 +96,7 @@ export async function getStorageStatus() {
 }
 
 /**
- * Inicializar y crear subcarpetas de ingesta
+ * Initialize and provision ingestion subfolders
  */
 export function initStorageFolders(musicRoot?: string) {
   const targetRoot = musicRoot || parseEnv(ENV_FILE_PATH).MUSIC_ROOT || '/volume1/music';
@@ -149,7 +149,7 @@ export function browseDirectory(queryPath?: string) {
     targetPath = path.dirname(targetPath);
   }
 
-  // Leer entradas del directorio
+  // Read directory entries
   let directories: Array<{ name: string; path: string }> = [];
   try {
     const entries = fs.readdirSync(targetPath, { withFileTypes: true });
@@ -167,14 +167,14 @@ export function browseDirectory(queryPath?: string) {
       }))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   } catch (readErr: any) {
-    console.warn(`No se pudo leer el contenido de ${targetPath}:`, readErr.message);
+    console.warn(`Failed to read directory content for ${targetPath}:`, readErr.message);
   }
 
-  // Generar breadcrumbs compatibles con Windows y POSIX
+  // Generate breadcrumbs compatible with Windows and POSIX
   const breadcrumbs: Array<{ name: string; path: string }> = [];
   if (isWindows) {
     const parsed = path.parse(targetPath);
-    const rootDrive = parsed.root; // ej. 'C:\\'
+    const rootDrive = parsed.root; // e.g. 'C:\\'
     breadcrumbs.push({ name: rootDrive, path: rootDrive });
 
     const relativeParts = targetPath.slice(rootDrive.length).split(path.sep).filter(Boolean);
@@ -193,11 +193,11 @@ export function browseDirectory(queryPath?: string) {
     }
   }
 
-  // Calcular directorio padre
+  // Calculate parent directory
   const parent = path.dirname(targetPath);
   const parentPath = (parent === targetPath) ? null : parent;
 
-  // Atajos comunes dinámicos según el Sistema Operativo
+  // OS-specific dynamic shortcuts
   const commonShortcuts: string[] = [];
   const hostHome = process.env.HOST_HOME;
 
@@ -213,8 +213,8 @@ export function browseDirectory(queryPath?: string) {
     const musicFolder = path.join(userHome, 'Music');
     if (fs.existsSync(musicFolder)) commonShortcuts.push(musicFolder);
   } else if (hostHome && fs.existsSync(hostHome)) {
-    // Entorno Docker con volumen de usuario montado:
-    // Solo mostrar las rutas reales del host del usuario para evitar confundir con rutas internas de Linux/NAS
+    // Docker environment with user home volume mounted:
+    // Only display real user host paths to avoid confusing with internal Linux/NAS container paths
     const candidates = [
       path.join(hostHome, 'Music'),
       path.join(hostHome, 'music'),
@@ -243,7 +243,7 @@ export function browseDirectory(queryPath?: string) {
     }
   }
 
-  // Comprobación de permisos de escritura
+  // Write permissions check
   let canWrite = true;
   try {
     fs.accessSync(targetPath, fs.constants.W_OK);

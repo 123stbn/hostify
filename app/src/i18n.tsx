@@ -58,7 +58,7 @@ export const translations = {
     updatingLibrary: 'Actualizando biblioteca...',
     libraryUpdated: 'Biblioteca actualizada',
 
-    // Tab Listen - Widget de Colección y Curador
+    // Tab Listen - Collection and Curator Widget
     libraryWidgetTitle: 'Colección & Descubrimiento',
     totalTracksLabel: 'Canciones en biblioteca',
     totalTracksHint: 'Pistas indexadas en Navidrome',
@@ -331,7 +331,7 @@ export const translations = {
     updatingLibrary: 'Updating library...',
     libraryUpdated: 'Library updated',
 
-    // Tab Listen - Widget de Colección y Curador
+    // Tab Listen - Collection and Curator Widget
     libraryWidgetTitle: 'Collection & Discovery',
     totalTracksLabel: 'Songs in library',
     totalTracksHint: 'Indexed tracks in Navidrome',

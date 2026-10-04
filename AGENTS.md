@@ -1,13 +1,13 @@
-# Reglas y Pautas del Proyecto Hostify
+# Hostify Project Guidelines and Rules
 
-## Gestor de Paquetes
-- **Uso obligatorio de pnpm**: Para todas las dependencias, scripts y proyectos Node.js/Frontend/Backend en este repositorio se debe utilizar siempre `pnpm` (`pnpm install`, `pnpm add`, `pnpm run ...`, etc.), nunca `npm` ni `yarn`.
+## Package Manager
+- **Mandatory use of pnpm**: For all Node.js, Frontend, and Backend dependencies and scripts in this repository, always use `pnpm` (`pnpm install`, `pnpm add`, `pnpm run ...`, etc.), never `npm` or `yarn`.
 
-## Principios de Arquitectura
-- **Hostify Core**: Contenedores y orquestación basados en Docker Engine API (`/var/run/docker.sock`).
-- **Segregación de Ingesta**: Todo archivo de música descargado u organizado debe distribuirse en subcarpetas (`personal/`, `explo/`, `slskd/`, `torrents/`) dentro del directorio raíz montado en Navidrome como solo lectura (`:ro`).
-- **Archivos incompletos**: Las descargas temporales o en progreso (ej. torrents) se almacenan fuera de la ruta de escaneo de Navidrome para evitar corromper etiquetas ID3.
-- **Acceso Remoto**: Soporte integrado tanto para Tailscale (sidecar opcional) como para Proxies Reversos (Caddy / Nginx / Traefik / Cloudflare Tunnel).
+## Architecture Principles
+- **Hostify Core**: Container management and orchestration based on the Docker Engine API (`/var/run/docker.sock`).
+- **Ingestion Segregation**: All music downloaded or organized must be placed into dedicated subfolders (`personal/`, `explo/`, `slskd/`, `torrents/`) inside the root music directory mounted into Navidrome as read-only (`:ro`).
+- **Incomplete Files**: Temporary or in-progress downloads (e.g., torrents) are stored outside Navidrome's scan path to prevent corrupting ID3 tag databases.
+- **Remote Access**: Built-in support for both Tailscale (optional sidecar) and Reverse Proxies (Caddy, Nginx, Traefik, Cloudflare Tunnel).
 
-## Idioma del Código y Comentarios
-- **Comentarios en código siempre en inglés**: Todos los comentarios, docstrings y encabezados dentro de archivos de código fuente, Dockerfiles, scripts bash/powershell y configuraciones (YAML, JSON, XML, etc.) deben redactarse siempre en idioma inglés.
+## Code Language and Comments
+- **Code comments strictly in English**: All comments, docstrings, and headers inside source code files, Dockerfiles, bash/PowerShell scripts, and configuration files (YAML, JSON, XML, etc.) must always be written in English.

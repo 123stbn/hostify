@@ -157,12 +157,12 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       '/tools/lidarr'
     );
 
-    // 3. Feishin Zero-Config (Garantizar template de settings.js en DOCKER_DATA)
+    // 3. Feishin Zero-Config (Ensure settings.js template exists in DOCKER_DATA)
     const feishinDataDir = path.join(dockerData, 'feishin');
     if (!fs.existsSync(feishinDataDir)) fs.mkdirSync(feishinDataDir, { recursive: true });
     const feishinTemplatePath = path.join(feishinDataDir, 'settings.js.template');
 
-    // Sincronizar también con PROJECT_DIR si existe
+    // Also synchronize with PROJECT_DIR if present
     const feishinProjectDir = path.join(PROJECT_DIR, 'docker', 'feishin');
     if (!fs.existsSync(feishinProjectDir)) {
       try { fs.mkdirSync(feishinProjectDir, { recursive: true }); } catch {}
@@ -314,13 +314,13 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     const prowlarrBase = `${resolveServiceTarget('prowlarr', 9696)}/tools/prowlarr`;
     const lidarrBase = `${resolveServiceTarget('lidarr', 8686)}/tools/lidarr`;
 
-    // Verificar si Prowlarr responde
+    // Check if Prowlarr is responding
     const testRes = await fetch(`${prowlarrBase}/api/v1/system/status`, {
       headers: { 'X-Api-Key': prowlarrApiKey },
       signal: AbortSignal.timeout(3000),
     }).catch(() => null);
 
-    // Verificar si Lidarr responde
+    // Check if Lidarr is responding
     const testLidarr = await fetch(`${lidarrBase}/api/v1/system/status`, {
       headers: { 'X-Api-Key': lidarrApiKey },
       signal: AbortSignal.timeout(3000),
@@ -333,9 +333,9 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
       return;
     }
 
-    console.log('[Hostify Provisioner] Prowlarr y Lidarr en línea. Verificando autenticación local y AllowedHosts...');
+    console.log('[Hostify Provisioner] Prowlarr and Lidarr online. Verifying local authentication and AllowedHosts...');
 
-    // 0. Sincronizar configuración de Host (Forms + DisabledForLocalAddresses + AllowedHosts) vía API
+    // 0. Synchronize Host configuration (Forms + DisabledForLocalAddresses + AllowedHosts) via API
     try {
       const pHostRes = await fetch(`${prowlarrBase}/api/v1/config/host`, {
         headers: { 'X-Api-Key': prowlarrApiKey },
@@ -404,19 +404,19 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
       console.warn('[Hostify Provisioner] Error configurando host en Lidarr:', err.message);
     }
 
-    // 1. Obtener indexadores existentes en Prowlarr
+    // 1. Retrieve existing indexers in Prowlarr
     const existingIndexersRes = await fetch(`${prowlarrBase}/api/v1/indexer`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
     const existingIndexers = (await existingIndexersRes.json()) as any[];
 
-    // 2. Obtener esquema de indexadores disponibles en Prowlarr
+    // 2. Retrieve indexer schema in Prowlarr
     const schemaRes = await fetch(`${prowlarrBase}/api/v1/indexer/schema`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
     const schema = (await schemaRes.json()) as any[];
 
-    // Indexadores públicos ideales para música (Audio / FLAC / MP3 / Discografías)
+    // Public indexers optimal for music (Audio / FLAC / MP3 / Discographies)
     const targetPublicDefs = ['thepiratebay', 'nyaasi', 'limetorrents'];
 
     for (const defName of targetPublicDefs) {
@@ -435,16 +435,16 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
               body: JSON.stringify(itemPayload),
             });
             if (addRes.ok) {
-              console.log(`[Hostify Provisioner] Indexador público '${defName}' agregado a Prowlarr con éxito.`);
+              console.log(`[Hostify Provisioner] Public indexer '${defName}' added to Prowlarr successfully.`);
             }
           } catch (err: any) {
-            console.warn(`[Hostify Provisioner] Error agregando indexador ${defName}:`, err.message);
+            console.warn(`[Hostify Provisioner] Error adding indexer ${defName}:`, err.message);
           }
         }
       }
     }
 
-    // 3. Vincular Lidarr en Prowlarr (para sincronización bidireccional inmediata)
+    // 3. Link Lidarr in Prowlarr (for immediate bi-directional sync)
     const appsRes = await fetch(`${prowlarrBase}/api/v1/applications`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
@@ -482,12 +482,12 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
         });
 
         if (linkRes.ok) {
-          console.log('[Hostify Provisioner] Lidarr conectado exitosamente como aplicación de Prowlarr.');
+          console.log('[Hostify Provisioner] Lidarr linked successfully as a Prowlarr application.');
         }
       }
     }
 
-    // 4. Vincular qBittorrent como cliente de descarga dentro de Lidarr
+    // 4. Link qBittorrent as download client in Lidarr
     const dlRes = await fetch(`${lidarrBase}/api/v1/downloadclient`, {
       headers: { 'X-Api-Key': lidarrApiKey }
     });
@@ -523,12 +523,12 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
         });
 
         if (addQbitRes.ok) {
-          console.log('[Hostify Provisioner] qBittorrent vinculado como cliente de descargas en Lidarr.');
+          console.log('[Hostify Provisioner] qBittorrent linked as download client in Lidarr.');
         }
       }
     }
 
-    // 5. Garantizar carpeta raíz /music en Lidarr
+    // 5. Ensure root folder /music exists in Lidarr
     const rootRes = await fetch(`${lidarrBase}/api/v1/rootfolder`, {
       headers: { 'X-Api-Key': lidarrApiKey }
     });
