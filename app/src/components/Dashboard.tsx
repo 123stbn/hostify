@@ -368,7 +368,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
 
   useEffect(() => {
     const domainToRequest = proxyDomain.trim() || defaultPlaceholderDomain;
-    fetch(`/api/proxy-snippets?domain=${encodeURIComponent(domainToRequest)}&port=${status?.navidromePort || 4533}`)
+    fetch(`/api/proxy-snippets?domain=${encodeURIComponent(domainToRequest)}&port=3500`)
       .then(res => res.json())
       .then(data => setProxySnippets(data))
       .catch(console.error);
@@ -490,20 +490,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     ? detectedHost
     : (currentBrowserHost && currentBrowserHost !== 'localhost' && currentBrowserHost !== '127.0.0.1' ? currentBrowserHost : '127.0.0.1');
 
-  // Para el navegador web local que está usando el usuario en esta máquina:
+  // Local browser hostname for user on this machine
   const localHost = currentBrowserHost || networkHostIp || 'localhost';
 
-  const naviPort = status?.navidromePort || '4533';
-  const feishinPort = status?.feishinPort || '9188';
-
-  // URL de conexión para clientes externos (Symfonium, Amperfy, Feishin Desktop en otros dispositivos):
-  // Si hay un dominio configurado, se usa el dominio; en caso contrario, la IP real del servidor en la red local
+  const hostifyGatewayPort = status?.hostifyPort || window.location.port || '3500';
   const subsonicUrl = status?.domain 
     ? (status.domain.startsWith('http') ? status.domain : `https://${status.domain}`)
-    : `http://${networkHostIp}:${naviPort}`;
+    : `http://${networkHostIp}:${hostifyGatewayPort}`;
 
-  const feishinUrl = `http://${localHost}:${feishinPort}`;
-  const navidromeLocalUrl = `http://${localHost}:${naviPort}`;
+  // Tools accessed through Hostify Reverse Proxy Gateway
+  const feishinUrl = '/feishin/';
+  const navidromeLocalUrl = '/app/';
   const runningContainers = containers.filter(c => c.state === 'running').length;
   const hasPendingServices = containers.some(c => c.category !== 'connectivity' && c.state !== 'running');
   const isFeishinRunning = containers.find(c => c.name.includes('feishin'))?.state === 'running';
@@ -517,42 +514,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const isSlskdInstalled = !!slskdContainer && slskdContainer.state !== 'not_created';
   const isSlskdRunning = slskdContainer?.state === 'running';
 
-  const getContainerUrl = (c?: ContainerInfo, fallbackPort = '80'): string => {
-    // Si es Prowlarr o Lidarr y estamos en la máquina anfitrión (localhost/127.0.0.1), usar siempre el mismo host de la barra de navegación
-    const targetHost = (c?.name.includes('prowlarr') || c?.name.includes('lidarr')) && currentBrowserHost
-      ? currentBrowserHost
-      : (networkHostIp || localHost);
-
-    if (!c) return `http://${targetHost}:${fallbackPort}`;
-    if (c.webUiUrl) {
-      try {
-        const u = new URL(c.webUiUrl);
-        if (u.port) return `http://${targetHost}:${u.port}`;
-      } catch {
-        // continue
-      }
-    }
-    if (c.name.includes('slskd')) return `http://${targetHost}:5030`;
-    if (c.name.includes('explo')) return `http://${targetHost}:7288`;
-    if (c.name.includes('navidrome')) return `http://${targetHost}:${naviPort}`;
-    if (c.name.includes('feishin')) return `http://${targetHost}:${feishinPort}`;
-    if (c.name.includes('qbittorrent')) return `http://${targetHost}:8080`;
-    if (c.name.includes('prowlarr')) return `http://${targetHost}:9696`;
-    if (c.name.includes('lidarr')) return `http://${targetHost}:8686`;
-    if (c.name.includes('scrobbler')) return `http://${targetHost}:9078`;
-
-    if (c.ports && c.ports.length > 0) {
-      for (const p of c.ports) {
-        const first = String(p).split(':')[0];
-        const num = parseInt(first, 10);
-        if (!isNaN(num) && num > 0) return `http://${targetHost}:${num}`;
-      }
-    }
-    return `http://${targetHost}:${fallbackPort}`;
+  const getContainerUrl = (c?: ContainerInfo): string => {
+    if (!c) return '/';
+    if (c.name.includes('feishin')) return '/feishin/';
+    if (c.name.includes('slskd')) return '/tools/slskd/';
+    if (c.name.includes('explo')) return '/tools/explo/';
+    if (c.name.includes('qbittorrent')) return '/tools/qbittorrent/';
+    if (c.name.includes('prowlarr')) return '/tools/prowlarr/';
+    if (c.name.includes('lidarr')) return '/tools/lidarr/';
+    if (c.name.includes('scrobbler')) return '/tools/scrobbler/';
+    if (c.name.includes('navidrome')) return '/app/';
+    return '/';
   };
 
-  const slskdUrl = getContainerUrl(slskdContainer, '5030');
-  const exploUrl = getContainerUrl(exploContainer, '7288');
+  const slskdUrl = '/tools/slskd/';
+  const exploUrl = '/tools/explo/';
 
   const openFeishinWindow = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -1109,12 +1085,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
 
                     <div className="flat-row-meta">
                       <span>{isRunning ? `${c.memoryUsageMb || 35} MB` : '0 MB'}</span>
-                      {c.ports.length > 0 && (
-                        <span>{t('portLabel')} {Array.from(new Set(c.ports))[0]}</span>
-                      )}
+                      <span style={{ fontSize: '0.74rem', opacity: 0.6, fontFamily: 'monospace' }}>
+                        {getContainerUrl(c)}
+                      </span>
 
                       <div style={{ display: 'flex', gap: '4px' }}>
-                        {isRunning && c.ports.length > 0 && (
+                        {isRunning && (
                           <a
                             href={getContainerUrl(c)}
                             target={c.name.includes('feishin') ? 'hostify_feishin_player' : c.name.includes('slskd') ? 'hostify_slskd' : c.name.includes('explo') ? 'hostify_explo' : `hostify_${c.name}`}

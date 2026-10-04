@@ -7,6 +7,10 @@
 .env*.local
 .env.production
 .hostify_configured*
+.hostify_license*
+.hostify_state*
+scripts/keys/*private*
+*.pem
 
 # Dependencias Node.js / pnpm
 node_modules/

@@ -9,15 +9,12 @@
     }
   } catch (e) {}
 
-  // Dynamically resolve reachable Navidrome URL based on client browser location
+  // Dynamically resolve reachable Navidrome URL through Hostify Gateway
   var envUrl = "${SERVER_URL}";
-  var ndPort = "${NAVIDROME_PORT}" || "4533";
-  var host = (typeof window !== "undefined" && window.location && window.location.hostname) ? window.location.hostname : "127.0.0.1";
-  var proto = (typeof window !== "undefined" && window.location && window.location.protocol) ? window.location.protocol : "http:";
-  var dynamicNavidromeUrl = proto + "//" + host + ":" + ndPort;
+  var hostifyGatewayUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "http://127.0.0.1:3500";
 
   if (!envUrl || envUrl.indexOf("hostify-navidrome") !== -1 || envUrl === "http://:4533" || envUrl === "") {
-    window.SERVER_URL = dynamicNavidromeUrl;
+    window.SERVER_URL = hostifyGatewayUrl;
   } else {
     window.SERVER_URL = envUrl;
   }

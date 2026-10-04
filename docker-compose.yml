@@ -10,6 +10,8 @@
 # - Appliance Web UI: Hostify Wizard & Dashboard (:3500)
 # ==============================================================================
 
+name: hostify
+
 services:
   # ----------------------------------------------------------------------------
   # HOSTIFY APPLIANCE: SETUP WIZARD & MANAGEMENT DASHBOARD
@@ -83,8 +85,9 @@ services:
     container_name: hostify-navidrome
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-10}"
-    ports:
-      - "${NAVIDROME_PORT:-4533}:4533"
+    # Fully isolated within hostify-net: all external access routes through Hostify Gateway (:3500)
+    expose:
+      - "4533"
     environment:
       - ND_SCANSCHEDULE=1m
       - ND_LOGLEVEL=info
@@ -93,9 +96,6 @@ services:
       - ND_ENABLETRANSCODINGCONFIG=true
       - ND_ENABLESHARING=true
       - ND_REVERSEPROXYUSERHEADER=${REVERSE_PROXY_USER_HEADER:-}
-      # Automated admin user provisioning for zero-config onboarding
-      - ND_DEVAUTOCREATEADMINPASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
-      - ND_DEVAUTOLOGINUSERNAME=${NAVIDROME_ADMIN_USER:-admin}
       - ND_REVERSEPROXYWHITELIST=${REVERSE_PROXY_WHITELIST:-}
     volumes:
       - ${DOCKER_DATA:-/volume1/docker}/navidrome/data:/data
@@ -111,16 +111,16 @@ services:
     image: ghcr.io/jeffvli/feishin:latest
     container_name: hostify-feishin
     restart: unless-stopped
-    ports:
-      - "${FEISHIN_PORT:-9188}:9180"
+    expose:
+      - "9180"
     environment:
       - SERVER_NAME=Hostify
       - SERVER_TYPE=navidrome
       - SERVER_URL=${BASE_URL:-}
       - SERVER_LOCK=true
       - NAVIDROME_PORT=${NAVIDROME_PORT:-4533}
-      - NAVIDROME_ADMIN_USER=${NAVIDROME_ADMIN_USER:-admin}
-      - NAVIDROME_ADMIN_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      - NAVIDROME_ADMIN_USER=${NAVIDROME_ADMIN_USER:-}
+      - NAVIDROME_ADMIN_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-}
       - ANALYTICS_DISABLED=true
       - FS_GENERAL_THEME=defaultDark
     volumes:
@@ -135,12 +135,13 @@ services:
     image: foxxmd/multi-scrobbler:latest
     container_name: hostify-multi-scrobbler
     restart: unless-stopped
-    ports:
-      - "9078:9078"
+    expose:
+      - "9078"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - BASE_URL=http://localhost:3500/tools/scrobbler
       # ListenBrainz - Client
       - LZ_USER=${LZ_USER:-}
       - LZ_TOKEN=${LZ_TOKEN:-}
@@ -149,8 +150,8 @@ services:
       - SUBSONIC_ID=navidrome
       - SUBSONIC_NAME=Navidrome
       - SUBSONIC_URL=http://hostify-navidrome:${NAVIDROME_PORT:-4533}
-      - SUBSONIC_USER=${NAVIDROME_ADMIN_USER:-admin}
-      - SUBSONIC_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      - SUBSONIC_USER=${NAVIDROME_ADMIN_USER:-}
+      - SUBSONIC_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-}
       # MusicBrainz - Smart tag transformation
       - MB_PRESETS=default,sensible,native
     volumes:
@@ -165,8 +166,8 @@ services:
     image: ghcr.io/lumepart/explo:latest
     container_name: hostify-explo
     restart: unless-stopped
-    ports:
-      - "7288:7288"
+    expose:
+      - "7288"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
@@ -182,8 +183,8 @@ services:
       # Navidrome (OpenSubsonic) integration
       - EXPLO_SYSTEM=subsonic
       - SYSTEM_URL=http://hostify-navidrome:${NAVIDROME_PORT:-4533}
-      - SYSTEM_USERNAME=${NAVIDROME_ADMIN_USER:-admin}
-      - SYSTEM_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-admin}
+      - SYSTEM_USERNAME=${NAVIDROME_ADMIN_USER:-}
+      - SYSTEM_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-}
       # Automated Discovery Playlist Schedules (Zero-Config)
       - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2
       - WEEKLY_EXPLORATION_FLAGS=--playlist weekly-exploration
@@ -216,14 +217,17 @@ services:
     container_name: hostify-slskd
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-10}"
+    # Web UI isolated to hostify-net; peer transfer port remains open for P2P network traffic
+    expose:
+      - "5030"
+      - "5031"
     ports:
-      - "5030:5030"
-      - "5031:5031"
       - "50300:50300"
     environment:
       # Disable Web UI login for direct access from Hostify dashboard
       - SLSKD_NO_AUTH=true
       - SLSKD_REMOTE_CONFIGURATION=true
+      - SLSKD_URL_BASE=/tools/slskd
       - SLSKD_SLSK_USERNAME=${SLSKD_USERNAME:-hostify_user}
       - SLSKD_SLSK_PASSWORD=${SLSKD_PASSWORD:-hostify_pass}
       - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}
@@ -247,8 +251,10 @@ services:
       - TZ=${TZ:-America/Lima}
       - WEBUI_PORT=8080
       - TORRENTING_PORT=6881
+    # Web UI isolated to hostify-net; torrenting transfer ports remain open for peer transfers
+    expose:
+      - "8080"
     ports:
-      - "8080:8080"
       - "6881:6881"
       - "6881:6881/udp"
     volumes:
@@ -271,10 +277,11 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - PROWLARR__SERVER__URLBASE=/tools/prowlarr
       - PROWLARR__AUTH__METHOD=Forms
       - PROWLARR__AUTH__REQUIRED=DisabledForLocalAddresses
-    ports:
-      - "9696:9696"
+    expose:
+      - "9696"
     volumes:
       - ${DOCKER_DATA:-/volume1/docker}/prowlarr:/config
     networks:
@@ -291,14 +298,15 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - LIDARR__SERVER__URLBASE=/tools/lidarr
       - LIDARR__AUTH__METHOD=Forms
       - LIDARR__AUTH__REQUIRED=DisabledForLocalAddresses
-    ports:
-      - "8686:8686"
+    expose:
+      - "8686"
     volumes:
       - ${DOCKER_DATA:-/volume1/docker}/lidarr:/config
       - ${MUSIC_ROOT:-/volume1/music}:/music
-      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads
+      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads/completed
     networks:
       - hostify-net
 

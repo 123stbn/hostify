@@ -3,8 +3,7 @@ import {
   HardDrive, Music, Radio, Shield, Globe,
   ArrowRight, ArrowLeft, Check, AlertCircle,
   Layers, DownloadCloud, CheckCircle2, Server, FolderSearch,
-  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles,
-  LayoutDashboard
+  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles
 } from 'lucide-react';
 import { AppStatus } from '../types.js';
 import { DirectoryPickerModal } from './DirectoryPickerModal.js';
@@ -124,10 +123,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const [tz, setTz] = useState<string>(draft?.tz ?? (status?.detectedTz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Lima'));
   const [showAdvancedPerms, setShowAdvancedPerms] = useState(false);
 
-  // Streaming & Scrobbling
   const [navidromePort, setNavidromePort] = useState<string>(draft?.navidromePort ?? (status?.navidromePort || '4533'));
-  const [navidromeAdminUser, setNavidromeAdminUser] = useState<string>(draft?.navidromeAdminUser ?? (status?.navidromeAdminUser || 'admin'));
-  const [navidromeAdminPassword, setNavidromeAdminPassword] = useState<string>(draft?.navidromeAdminPassword ?? (status?.navidromeAdminPassword || 'admin'));
+  const hostifyPort = status?.hostifyPort || '3500';
+  const [navidromeAdminUser, setNavidromeAdminUser] = useState<string>(draft?.navidromeAdminUser ?? (status?.navidromeAdminUser || ''));
+  const [navidromeAdminPassword, setNavidromeAdminPassword] = useState<string>(draft?.navidromeAdminPassword ?? (status?.navidromeAdminPassword || ''));
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [showAdvancedNetwork, setShowAdvancedNetwork] = useState(false);
   const [enableListenBrainz, setEnableListenBrainz] = useState<boolean>(draft?.enableListenBrainz ?? (status?.enableListenBrainz ?? true));
@@ -239,8 +238,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       setPgid(status?.detectedPgid || '10');
       setTz(status?.detectedTz || 'America/Lima');
       setNavidromePort(status?.navidromePort || '4533');
-      setNavidromeAdminUser('admin');
-      setNavidromeAdminPassword('admin');
+      setNavidromeAdminUser(status?.navidromeAdminUser || '');
+      setNavidromeAdminPassword(status?.navidromeAdminPassword || '');
       setEnableListenBrainz(true);
       setListenBrainzUser('');
       setListenBrainzToken('');
@@ -454,6 +453,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
         modules,
         remoteAccess: remoteMode,
         domain: remoteMode === 'proxy' ? domain : '',
+        hostIp: status?.hostIp || '',
+        localHostname: (status?.localHostname || 'hostify.local').replace(/\.local$/, ''),
       };
 
       const res = await fetch('/api/setup', {
@@ -503,7 +504,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       )}
 
       {/* Cabecera */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '1.45rem', fontWeight: '700', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
             {t('wizardTitle')}
@@ -513,16 +514,16 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           </p>
         </div>
 
-        {status?.isConfigured && onCancel && (
+        {onCancel && (
           <button
             type="button"
-            id="btn-wizard-exit"
-            className="btn btn-secondary btn-sm"
+            id="btn-wizard-cancel"
+            className="btn btn-secondary"
             onClick={onCancel}
-            title={t('backToDashboard')}
+            title={t('cancelWizard')}
+            style={{ height: '36px', minHeight: '36px', padding: '0 16px', boxSizing: 'border-box' }}
           >
-            <LayoutDashboard size={13} />
-            <span>{t('backToDashboard')}</span>
+            <span>{t('cancelWizard')}</span>
           </button>
         )}
       </div>
@@ -730,30 +731,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', marginBottom: '20px' }}>
               <div>
                 <span style={{ fontSize: '0.84rem', fontWeight: '500' }}>{t('step2StreamingPort')} </span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.84rem' }}>{navidromePort}</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.84rem' }}>{hostifyPort}</span>
               </div>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setShowAdvancedNetwork(!showAdvancedNetwork)}
-              >
-                {showAdvancedNetwork ? t('close') : t('step2Change')}
-              </button>
             </div>
-
-            {showAdvancedNetwork && (
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <label className="form-label">{t('step2CustomPort')}</label>
-                <input
-                  id="input-navidrome-port"
-                  type="text"
-                  className="form-input"
-                  value={navidromePort}
-                  onChange={e => setNavidromePort(e.target.value)}
-                  placeholder="4533"
-                />
-              </div>
-            )}
 
             {/* ListenBrainz */}
             <div style={{ padding: '14px 0' }}>
@@ -942,10 +922,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Nombre fijo (mDNS): <code style={{ color: 'var(--accent-brass)' }}>http://{status?.localHostname || 'hostify.local'}:{navidromePort}</code>
+                    Nombre fijo (mDNS): <code style={{ color: 'var(--accent-brass)' }}>http://{status?.localHostname || 'hostify.local'}:{hostifyPort}</code>
                   </p>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    IP directa: <code>http://{status?.hostIp || '127.0.0.1'}:{navidromePort}</code>
+                    IP directa: <code>http://{status?.hostIp || '127.0.0.1'}:{hostifyPort}</code>
                   </p>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px' }}>
@@ -998,7 +978,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               </div>
               <div className="flat-row" style={{ padding: '8px 0' }}>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummaryPort')}</span>
-                <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>{navidromePort}</span>
+                <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>{hostifyPort}</span>
               </div>
               <div className="flat-row" style={{ padding: '8px 0' }}>
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummaryUser')}</span>
@@ -1030,43 +1010,40 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>
         {currentStep > 1 ? (
           <button
+            type="button"
             id="btn-wizard-prev"
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary"
             onClick={() => { setErrorMsg(''); setCurrentStep(prev => prev - 1); }}
             disabled={loading}
+            style={{ height: '38px', minHeight: '38px', padding: '0 16px', boxSizing: 'border-box' }}
           >
-            <ArrowLeft size={13} />
+            <ArrowLeft size={14} />
             <span>{t('back')}</span>
           </button>
         ) : (
-          status?.isConfigured && onCancel ? (
-            <button
-              id="btn-wizard-cancel"
-              className="btn btn-secondary btn-sm"
-              onClick={onCancel}
-              disabled={loading}
-            >
-              <span>{t('cancelWizard')}</span>
-            </button>
-          ) : <div></div>
+          <div></div>
         )}
 
         {currentStep < 5 ? (
           <button
+            type="button"
             id="btn-wizard-next"
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary"
             onClick={handleNextStep}
             disabled={loading}
+            style={{ height: '38px', minHeight: '38px', padding: '0 18px', boxSizing: 'border-box' }}
           >
             <span>{t('continue')}</span>
-            <ArrowRight size={13} />
+            <ArrowRight size={14} />
           </button>
         ) : (
           <button
+            type="button"
             id="btn-wizard-launch"
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary"
             onClick={handleSubmit}
             disabled={loading || !status?.dockerAvailable}
+            style={{ height: '38px', minHeight: '38px', padding: '0 20px', boxSizing: 'border-box' }}
           >
             <span>{loading ? t('launchingLibrary') : t('launchLibrary')}</span>
           </button>

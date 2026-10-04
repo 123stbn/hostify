@@ -4,6 +4,10 @@ import { containersRouter } from './containers.routes.js';
 import { storageRouter } from './storage.routes.js';
 import { playerRouter } from './player.routes.js';
 import { setupRouter } from './setup.routes.js';
+import { licenseRouter } from './license.routes.js';
+
+import { createProxyMiddleware } from 'http-proxy-middleware';
+import { getNavidromeTarget } from './proxy.routes.js';
 
 export const apiRouter = Router();
 
@@ -12,8 +16,19 @@ apiRouter.use(containersRouter);
 apiRouter.use(storageRouter);
 apiRouter.use(playerRouter);
 apiRouter.use(setupRouter);
+apiRouter.use('/license', licenseRouter);
 
-// 404 JSON para rutas de API no existentes (evita retornar HTML en llamadas a la API)
-apiRouter.all('*', (req: Request, res: Response) => {
-  res.status(404).json({ error: `Ruta API no encontrada: ${req.method} ${req.path}` });
-});
+// Transparent fallback for Navidrome internal API requests (e.g. /api/user, /api/listenbrainz)
+apiRouter.use(createProxyMiddleware({
+  router: () => getNavidromeTarget(),
+  pathRewrite: (path) => `/api${path}`,
+  changeOrigin: true,
+  ws: true,
+  on: {
+    error: (_err: any, req: Request, res: any) => {
+      if (res && !res.headersSent && typeof res.status === 'function') {
+        res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+      }
+    }
+  }
+}));

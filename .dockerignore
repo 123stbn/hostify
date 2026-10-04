@@ -1,0 +1,7 @@
+# Ignore build artifacts, local secrets, and node_modules
+node_modules
+dist
+.git
+.DS_Store
+scripts/keys/*.pem
+!scripts/keys/hostify_ed25519_public.pem

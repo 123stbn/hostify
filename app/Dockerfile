@@ -2,7 +2,7 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Instalar pnpm globalmente
+# Enable pnpm globally
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
 COPY package.json pnpm-lock.yaml* ./
@@ -17,7 +17,7 @@ WORKDIR /app
 
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 
-# Instalar docker CLI para fallback de comandos si fuera necesario
+# Install Docker CLI and system utilities for container orchestration fallback
 RUN apk add --no-cache docker-cli docker-cli-compose bash curl
 
 COPY package.json pnpm-lock.yaml* ./
@@ -31,4 +31,4 @@ ENV HOSTIFY_PORT=3500
 
 EXPOSE 3500
 
-CMD ["node", "dist/server/index.js"]
+CMD ["node", "dist/index.cjs"]

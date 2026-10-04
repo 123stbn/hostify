@@ -60,4 +60,36 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(updated.includes('<ApiKey>existing_secret_key</ApiKey>'));
     assert.equal(envData.PROWLARR_API_KEY, 'existing_secret_key');
   });
+
+  test('configureServarrXml writes and updates UrlBase correctly', () => {
+    configureServarrXml(
+      xmlPath,
+      9696,
+      'Prowlarr',
+      'localhost',
+      '127.0.0.1/32',
+      'PROWLARR_API_KEY',
+      undefined,
+      '/tools/prowlarr'
+    );
+
+    let content = fs.readFileSync(xmlPath, 'utf-8');
+    assert.ok(content.includes('<UrlBase>/tools/prowlarr</UrlBase>'));
+
+    // Update existing config
+    configureServarrXml(
+      xmlPath,
+      9696,
+      'Prowlarr',
+      'localhost',
+      '127.0.0.1/32',
+      'PROWLARR_API_KEY',
+      undefined,
+      '/tools/custom_prowlarr'
+    );
+
+    content = fs.readFileSync(xmlPath, 'utf-8');
+    assert.ok(content.includes('<UrlBase>/tools/custom_prowlarr</UrlBase>'));
+    assert.ok(!content.includes('<UrlBase>/tools/prowlarr</UrlBase>'));
+  });
 });

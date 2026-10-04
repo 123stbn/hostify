@@ -1,37 +1,161 @@
 import { Readable } from 'node:stream';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
 import { NowPlayingTrack } from '../types/index.js';
+import { getNavidromeTarget } from '../routes/proxy.routes.js';
+
+export interface NavidromeCredentials {
+  user: string;
+  pass: string;
+}
 
 /**
- * Disparar escaneo de biblioteca en Navidrome
+ * Retrieve user-configured Navidrome credentials without hardcoded fallbacks
  */
-export async function triggerNavidromeScan(): Promise<any> {
+function getNavidromeCredentials(): NavidromeCredentials | null {
   const env = parseEnv(ENV_FILE_PATH);
-  const ndPort = env.NAVIDROME_PORT || '4533';
-  const ndUser = env.NAVIDROME_ADMIN_USER || 'admin';
-  const ndPass = env.NAVIDROME_ADMIN_PASSWORD || 'admin';
+  const user = env.NAVIDROME_ADMIN_USER?.trim();
+  const pass = env.NAVIDROME_ADMIN_PASSWORD?.trim();
+  if (!user || !pass) {
+    return null;
+  }
+  return { user, pass };
+}
 
+/**
+ * Build the list of credentials a Navidrome admin may currently have, derived
+ * from a previous .env snapshot. Older Hostify releases relied on Navidrome's
+ * dev auto-create option, which always created the user "admin" with the
+ * configured password regardless of the configured username, so that pairing is
+ * included to be able to migrate such databases.
+ */
+export function previousNavidromeCandidates(prevEnv: Record<string, string>): NavidromeCredentials[] {
+  const pass = prevEnv.NAVIDROME_ADMIN_PASSWORD?.trim();
+  const user = prevEnv.NAVIDROME_ADMIN_USER?.trim();
+  const candidates: NavidromeCredentials[] = [];
+  if (user && pass) candidates.push({ user, pass });
+  if (pass) candidates.push({ user: 'admin', pass });
+  if (user) candidates.push({ user, pass: 'admin' });
+  candidates.push({ user: 'admin', pass: 'admin' });
+  return candidates;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function navidromeLogin(target: string, creds: NavidromeCredentials): Promise<{ id: string; token: string } | null> {
   try {
-    const scanUrl = `http://127.0.0.1:${ndPort}/rest/startScan.view?u=${encodeURIComponent(ndUser)}&p=${encodeURIComponent(ndPass)}&v=1.16.1&c=hostify&f=json&fullScan=true`;
-    const resp = await fetch(scanUrl, { signal: AbortSignal.timeout(5000) });
-    return await resp.json();
-  } catch (err: any) {
-    console.warn('[Hostify Subsonic] Error disparando escaneo en Navidrome:', err.message);
+    const res = await fetch(`${target}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: creds.user, password: creds.pass }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as any;
+    return data?.token ? { id: data.id, token: data.token } : null;
+  } catch {
     return null;
   }
 }
 
 /**
- * Obtener la pista en reproducción actual desde Navidrome
+ * Make Navidrome's admin account match the credentials chosen in the wizard.
+ *  1. Wait until Navidrome answers.
+ *  2. Already valid -> nothing to do.
+ *  3. Fresh database (no users) -> create the first admin.
+ *  4. Existing admin with previous credentials -> rename it and set the new password.
+ */
+export async function ensureNavidromeAdmin(previous: NavidromeCredentials[] = []): Promise<boolean> {
+  const desired = getNavidromeCredentials();
+  if (!desired) return false;
+  const target = getNavidromeTarget();
+
+  let up = false;
+  for (let i = 0; i < 40 && !up; i++) {
+    up = await fetch(`${target}/ping`, { signal: AbortSignal.timeout(3000) }).then((r) => r.ok).catch(() => false);
+    if (!up) await sleep(3000);
+  }
+  if (!up) {
+    console.warn('[Hostify Navidrome] Navidrome did not become reachable; admin sync skipped');
+    return false;
+  }
+
+  if (await navidromeLogin(target, desired)) return true;
+
+  // Fresh database: Navidrome only accepts createAdmin while it has no users
+  try {
+    const res = await fetch(`${target}/auth/createAdmin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: desired.user, password: desired.pass }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok && await navidromeLogin(target, desired)) {
+      console.log(`[Hostify Navidrome] Admin "${desired.user}" created`);
+      return true;
+    }
+  } catch {}
+
+  // Existing admin created with previous credentials: update it in place
+  for (const prev of previous) {
+    const session = await navidromeLogin(target, prev);
+    if (!session) continue;
+    try {
+      const res = await fetch(`${target}/api/user/${session.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-ND-Authorization': `Bearer ${session.token}` },
+        body: JSON.stringify({
+          userName: desired.user,
+          name: desired.user,
+          isAdmin: true,
+          password: desired.pass,
+          currentPassword: prev.pass,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok && await navidromeLogin(target, desired)) {
+        console.log(`[Hostify Navidrome] Admin updated to "${desired.user}"`);
+        return true;
+      }
+    } catch {}
+  }
+
+  console.warn('[Hostify Navidrome] Could not sync admin credentials: Navidrome already has an admin with unknown credentials');
+  return false;
+}
+
+/**
+ * Trigger library scan on Navidrome
+ */
+export async function triggerNavidromeScan(): Promise<any> {
+  const creds = getNavidromeCredentials();
+  if (!creds) {
+    console.warn('[Hostify Subsonic] Cannot trigger scan: Navidrome credentials not configured');
+    return null;
+  }
+  const target = getNavidromeTarget();
+
+  try {
+    const scanUrl = `${target}/rest/startScan.view?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify&f=json&fullScan=true`;
+    const resp = await fetch(scanUrl, { signal: AbortSignal.timeout(5000) });
+    return await resp.json();
+  } catch (err: any) {
+    console.warn('[Hostify Subsonic] Error triggering scan on Navidrome:', err.message);
+    return null;
+  }
+}
+
+/**
+ * Fetch currently playing track from Navidrome
  */
 export async function getNowPlaying(): Promise<{ active: boolean; track: NowPlayingTrack | null; error?: string }> {
   try {
-    const currentEnv = parseEnv(ENV_FILE_PATH);
-    const naviPort = currentEnv.NAVIDROME_PORT || '4533';
-    const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
-    const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+    const creds = getNavidromeCredentials();
+    if (!creds) {
+      return { active: false, track: null };
+    }
+    const target = getNavidromeTarget();
 
-    const url = `http://127.0.0.1:${naviPort}/rest/getNowPlaying?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json`;
+    const url = `${target}/rest/getNowPlaying?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify-dashboard&f=json`;
     const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
     if (!response.ok) {
       return { active: false, track: null };
@@ -66,15 +190,16 @@ export async function getNowPlaying(): Promise<{ active: boolean; track: NowPlay
 }
 
 /**
- * Obtener carátula de álbum desde Navidrome
+ * Fetch album cover art from Navidrome
  */
 export async function getCoverArt(artId: string): Promise<{ contentType: string; data: Buffer } | null> {
-  const currentEnv = parseEnv(ENV_FILE_PATH);
-  const naviPort = currentEnv.NAVIDROME_PORT || '4533';
-  const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
-  const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+  const creds = getNavidromeCredentials();
+  if (!creds) {
+    return null;
+  }
+  const target = getNavidromeTarget();
 
-  const url = `http://127.0.0.1:${naviPort}/rest/getCoverArt?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(artId)}`;
+  const url = `${target}/rest/getCoverArt?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(artId)}`;
   const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
   if (!response.ok) {
     return null;
@@ -89,15 +214,16 @@ export async function getCoverArt(artId: string): Promise<{ contentType: string;
 }
 
 /**
- * Transmisión (stream) de audio desde Navidrome
+ * Audio stream relay from Navidrome
  */
 export async function getAudioStream(songId: string): Promise<{ contentType: string; stream: any } | null> {
-  const currentEnv = parseEnv(ENV_FILE_PATH);
-  const naviPort = currentEnv.NAVIDROME_PORT || '4533';
-  const user = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
-  const pass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+  const creds = getNavidromeCredentials();
+  if (!creds) {
+    return null;
+  }
+  const target = getNavidromeTarget();
 
-  const url = `http://127.0.0.1:${naviPort}/rest/stream?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(songId)}`;
+  const url = `${target}/rest/stream?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify-dashboard&f=json&id=${encodeURIComponent(songId)}`;
   const streamRes = await fetch(url);
   if (!streamRes.ok || !streamRes.body) {
     return null;

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar.js';
 import { SetupWizard } from './components/SetupWizard.js';
 import { Dashboard } from './components/Dashboard.js';
+import { LicenseModal } from './components/LicenseModal.js';
 import { AppStatus } from './types.js';
 import { useI18n } from './i18n.js';
 
@@ -10,6 +11,7 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'wizard'>('dashboard');
+  const [licenseModalOpen, setLicenseModalOpen] = useState(false);
   const isFirstLoad = useRef(true);
 
   const fetchStatus = async () => {
@@ -28,7 +30,7 @@ export const App: React.FC = () => {
         }
       }
     } catch (err) {
-      console.error('Error obteniendo estado de Hostify:', err);
+      console.error('Error fetching Hostify status:', err);
     } finally {
       setLoading(false);
     }
@@ -40,16 +42,18 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const handleResetWizard = async () => {
+  const handleOpenWizard = () => {
     if (!status?.dockerAvailable) return;
+    localStorage.removeItem('hostify_wizard_draft_v1');
+    setView('wizard');
+  };
+
+  const handleCancelWizard = async () => {
     try {
-      localStorage.removeItem('hostify_wizard_draft_v1');
-      await fetch('/api/reset-wizard', { method: 'POST' });
-      await fetchStatus();
-      setView('wizard');
-    } catch (err) {
-      console.error(err);
-    }
+      await fetch('/api/cancel-wizard', { method: 'POST' });
+    } catch {}
+    await fetchStatus();
+    setView('dashboard');
   };
 
   const handleWizardComplete = () => {
@@ -72,8 +76,9 @@ export const App: React.FC = () => {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-base)' }}>
       <Navbar 
         status={status} 
-        onOpenSettings={() => setView(view === 'wizard' ? 'dashboard' : 'wizard')}
-        onResetWizard={handleResetWizard}
+        onOpenSettings={() => (view === 'wizard' ? handleCancelWizard() : handleOpenWizard())}
+        onResetWizard={handleOpenWizard}
+        onOpenLicense={() => setLicenseModalOpen(true)}
         activeView={view}
       />
 
@@ -82,12 +87,19 @@ export const App: React.FC = () => {
           <SetupWizard 
             status={status} 
             onComplete={handleWizardComplete} 
-            onCancel={() => setView('dashboard')}
+            onCancel={status?.isConfigured ? handleCancelWizard : undefined}
           />
         ) : (
           <Dashboard status={status} onRefreshStatus={fetchStatus} />
         )}
       </main>
+
+      <LicenseModal
+        license={status?.license}
+        isOpen={licenseModalOpen}
+        onClose={() => setLicenseModalOpen(false)}
+        onRefresh={fetchStatus}
+      />
 
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '22px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
         <p>{t('footerText')}</p>

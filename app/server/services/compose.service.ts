@@ -5,6 +5,7 @@ import { DeploymentState } from '../types/index.js';
 import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv } from '../utils/env.js';
 import { dockerClient } from './docker.service.js';
 import { ensureProwlarrLidarrSetup } from './provisioner.service.js';
+import { ensureNavidromeAdmin, NavidromeCredentials } from './subsonic.service.js';
 
 let deploymentState: DeploymentState = {
   isDeploying: false,
@@ -21,7 +22,7 @@ export function getDeploymentState(): DeploymentState {
 /**
  * Función global de despliegue con streaming de logs y reintentos automáticos
  */
-export function triggerDeploy(): boolean {
+export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = []): boolean {
   if (!dockerClient.isAvailable()) {
     deploymentState.lastError = 'Docker Engine está apagado. Inicie Colima o Docker Desktop.';
     return false;
@@ -105,8 +106,8 @@ export function triggerDeploy(): boolean {
         `ENRICH_TRACK_METADATA=true`,
         `EXPLO_SYSTEM=subsonic`,
         `SYSTEM_URL=http://hostify-navidrome:${env.NAVIDROME_PORT || 4533}`,
-        `SYSTEM_USERNAME=${env.NAVIDROME_ADMIN_USER || 'admin'}`,
-        `SYSTEM_PASSWORD=${env.NAVIDROME_ADMIN_PASSWORD || 'admin'}`,
+        `SYSTEM_USERNAME=${env.NAVIDROME_ADMIN_USER || ''}`,
+        `SYSTEM_PASSWORD=${env.NAVIDROME_ADMIN_PASSWORD || ''}`,
         `DOWNLOAD_SERVICES=${downloadServicesList.join(',')}`,
         `SLSKD_URL=http://hostify-slskd:5030`,
         `SLSKD_API_KEY=${env.SLSKD_API_KEY || ''}`,
@@ -146,7 +147,8 @@ export function triggerDeploy(): boolean {
   };
 
   const runCompose = (retryCount = 0) => {
-    const cmdArgs = ['compose', '-f', composePath, 'up', '-d', ...selectedServices];
+    // Explicitly pin the compose project name to 'hostify' to avoid discrepancies across environments
+    const cmdArgs = ['compose', '-p', 'hostify', '-f', composePath, 'up', '-d', ...selectedServices];
     const proc = spawn('docker', cmdArgs, { cwd: PROJECT_DIR });
 
     proc.stdout.on('data', (data) => {
@@ -172,6 +174,10 @@ export function triggerDeploy(): boolean {
         const env = parseEnv(ENV_FILE_PATH);
         const dockerData = env.DOCKER_DATA || '/volume1/docker';
         ensureProwlarrLidarrSetup(dockerData, 0);
+        // Align Navidrome's admin account with the credentials chosen in the wizard
+        ensureNavidromeAdmin(previousNavidromeCreds).catch((err) => {
+          console.warn('[Hostify Navidrome] Admin sync failed:', err?.message || err);
+        });
       } else {
         if (retryCount < 2) {
           const delaySec = (retryCount + 1) * 3;

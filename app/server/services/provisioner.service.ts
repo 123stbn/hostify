@@ -4,6 +4,8 @@ import crypto from 'node:crypto';
 import { PROJECT_DIR, parseEnv, ENV_FILE_PATH } from '../utils/env.js';
 import { getHostAllowedAddresses } from './network.service.js';
 
+import { resolveServiceTarget } from '../routes/proxy.routes.js';
+
 /**
  * Parchea o inicializa el config.xml de una app *arr (Prowlarr / Lidarr)
  */
@@ -14,7 +16,8 @@ export function configureServarrXml(
   allowedHostsStr: string,
   trustedNetworksStr: string,
   envKey: string,
-  envData?: Record<string, string>
+  envData?: Record<string, string>,
+  urlBase?: string
 ) {
   const patchXml = (xml: string): string => {
     let out = xml;
@@ -24,6 +27,9 @@ export function configureServarrXml(
       [/<AllowedHosts>.*?<\/AllowedHosts>/i, `<AllowedHosts>${allowedHostsStr}</AllowedHosts>`],
       [/<TrustedNetworks>.*?<\/TrustedNetworks>/i, `<TrustedNetworks>${trustedNetworksStr}</TrustedNetworks>`],
     ];
+    if (urlBase !== undefined) {
+      replacements.push([/<UrlBase>.*?<\/UrlBase>/i, `<UrlBase>${urlBase}</UrlBase>`]);
+    }
     for (const [pattern, replacement] of replacements) {
       if (pattern.test(out)) {
         out = out.replace(pattern, replacement);
@@ -45,7 +51,7 @@ export function configureServarrXml(
   } else {
     const apiKey = envData?.[envKey] || crypto.randomBytes(16).toString('hex');
     if (envData) envData[envKey] = apiKey;
-    const xml = `<Config>\n  <BindAddress>*</BindAddress>\n  <Port>${port}</Port>\n  <EnableSsl>False</EnableSsl>\n  <ApiKey>${apiKey}</ApiKey>\n  <AuthenticationMethod>Forms</AuthenticationMethod>\n  <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>\n  <AllowedHosts>${allowedHostsStr}</AllowedHosts>\n  <TrustedNetworks>${trustedNetworksStr}</TrustedNetworks>\n  <Branch>master</Branch>\n  <LogLevel>info</LogLevel>\n  <UrlBase></UrlBase>\n  <InstanceName>${instanceName}</InstanceName>\n  <UpdateMechanism>Docker</UpdateMechanism>\n</Config>\n`;
+    const xml = `<Config>\n  <BindAddress>*</BindAddress>\n  <Port>${port}</Port>\n  <EnableSsl>False</EnableSsl>\n  <ApiKey>${apiKey}</ApiKey>\n  <AuthenticationMethod>Forms</AuthenticationMethod>\n  <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>\n  <AllowedHosts>${allowedHostsStr}</AllowedHosts>\n  <TrustedNetworks>${trustedNetworksStr}</TrustedNetworks>\n  <Branch>master</Branch>\n  <LogLevel>info</LogLevel>\n  <UrlBase>${urlBase || ''}</UrlBase>\n  <InstanceName>${instanceName}</InstanceName>\n  <UpdateMechanism>Docker</UpdateMechanism>\n</Config>\n`;
     fs.writeFileSync(configPath, xml, 'utf-8');
   }
 }
@@ -77,6 +83,11 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       'WebUI\\AuthSubnetWhitelistEnabled': 'WebUI\\AuthSubnetWhitelistEnabled=true',
       'WebUI\\LocalHostAuth': 'WebUI\\LocalHostAuth=false',
       'WebUI\\UseUPnP': 'WebUI\\UseUPnP=false',
+      'WebUI\\ReverseProxySupportEnabled': 'WebUI\\ReverseProxySupportEnabled=true',
+      'WebUI\\HostHeaderValidation': 'WebUI\\HostHeaderValidation=false',
+      'WebUI\\CSRFProtection': 'WebUI\\CSRFProtection=false',
+      'WebUI\\ClickjackingProtection': 'WebUI\\ClickjackingProtection=false',
+      'WebUI\\TrustedReverseProxiesList': 'WebUI\\TrustedReverseProxiesList=0.0.0.0/0, ::/0',
       'Downloads\\SavePath': 'Downloads\\SavePath=/downloads/completed/',
       'Downloads\\TempPath': 'Downloads\\TempPath=/downloads/incomplete/',
       'Downloads\\TempPathEnabled': 'Downloads\\TempPathEnabled=true',
@@ -129,7 +140,8 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       allowedHostsStr,
       trustedNetworksStr,
       'PROWLARR_API_KEY',
-      envData
+      envData,
+      '/tools/prowlarr'
     );
 
     const lidarrDir = path.join(dockerData, 'lidarr');
@@ -141,7 +153,8 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       allowedHostsStr,
       trustedNetworksStr,
       'LIDARR_API_KEY',
-      envData
+      envData,
+      '/tools/lidarr'
     );
 
     // 3. Feishin Zero-Config (Garantizar template de settings.js en DOCKER_DATA)
@@ -168,13 +181,10 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
 
 (function() {
   var envUrl = "\${SERVER_URL}";
-  var ndPort = "\${NAVIDROME_PORT}" || "4533";
-  var host = (typeof window !== "undefined" && window.location && window.location.hostname) ? window.location.hostname : "127.0.0.1";
-  var proto = (typeof window !== "undefined" && window.location && window.location.protocol) ? window.location.protocol : "http:";
-  var dynamicNavidromeUrl = proto + "//" + host + ":" + ndPort;
+  var hostifyGatewayUrl = (typeof window !== "undefined" && window.location && window.location.origin) ? window.location.origin : "http://127.0.0.1:3500";
 
   if (!envUrl || envUrl.indexOf("hostify-navidrome") !== -1 || envUrl === "http://:4533" || envUrl === "") {
-    window.SERVER_URL = dynamicNavidromeUrl;
+    window.SERVER_URL = hostifyGatewayUrl;
   } else {
     window.SERVER_URL = envUrl;
   }
@@ -189,12 +199,12 @@ window.ANALYTICS_DISABLED = "\${ANALYTICS_DISABLED:-true}";
 window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
 
 (function autoAuthHostify() {
-  var adminUser = "\${NAVIDROME_ADMIN_USER}" || "admin";
-  var adminPass = "\${NAVIDROME_ADMIN_PASSWORD}" || "";
+  var adminUser = "\${NAVIDROME_ADMIN_USER}";
+  var adminPass = "\${NAVIDROME_ADMIN_PASSWORD}";
   var serverUrl = window.SERVER_URL;
   var serverName = window.SERVER_NAME || "Hostify";
 
-  if (!adminPass || !serverUrl) return;
+  if (!adminUser || !adminPass || !serverUrl) return;
 
   function tryAutoAuth() {
     try {
@@ -289,8 +299,11 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     const currentEnv = parseEnv(ENV_FILE_PATH);
-    const adminUser = currentEnv.NAVIDROME_ADMIN_USER || 'admin';
-    const adminPass = currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin';
+    const adminUser = currentEnv.NAVIDROME_ADMIN_USER || '';
+    const adminPass = currentEnv.NAVIDROME_ADMIN_PASSWORD || '';
+    const adminLogin = adminUser && adminPass
+      ? { username: adminUser, password: adminPass, passwordConfirmation: adminPass }
+      : {};
     const allowedHostsList = getHostAllowedAddresses();
     const allowedHostsStr = allowedHostsList.join(',');
     const trustedNetworksStr = '172.16.0.0/12, 192.168.0.0/16, 10.0.0.0/8, 127.0.0.1/32, 100.64.0.0/10';
@@ -298,14 +311,17 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     const prowlarrApiKey = pKeyMatch[1];
     const lidarrApiKey = lKeyMatch[1];
 
+    const prowlarrBase = `${resolveServiceTarget('prowlarr', 9696)}/tools/prowlarr`;
+    const lidarrBase = `${resolveServiceTarget('lidarr', 8686)}/tools/lidarr`;
+
     // Verificar si Prowlarr responde
-    const testRes = await fetch('http://localhost:9696/api/v1/system/status', {
+    const testRes = await fetch(`${prowlarrBase}/api/v1/system/status`, {
       headers: { 'X-Api-Key': prowlarrApiKey },
       signal: AbortSignal.timeout(3000),
     }).catch(() => null);
 
     // Verificar si Lidarr responde
-    const testLidarr = await fetch('http://localhost:8686/api/v1/system/status', {
+    const testLidarr = await fetch(`${lidarrBase}/api/v1/system/status`, {
       headers: { 'X-Api-Key': lidarrApiKey },
       signal: AbortSignal.timeout(3000),
     }).catch(() => null);
@@ -321,7 +337,7 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
 
     // 0. Sincronizar configuración de Host (Forms + DisabledForLocalAddresses + AllowedHosts) vía API
     try {
-      const pHostRes = await fetch('http://localhost:9696/api/v1/config/host', {
+      const pHostRes = await fetch(`${prowlarrBase}/api/v1/config/host`, {
         headers: { 'X-Api-Key': prowlarrApiKey },
         signal: AbortSignal.timeout(4000),
       });
@@ -332,16 +348,14 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
         const authWrong = pHostConfig.authenticationMethod !== 'forms' || pHostConfig.authenticationRequired !== 'disabledForLocalAddresses';
 
         if (authWrong || missingAnyIp) {
-          const updateRes = await fetch('http://localhost:9696/api/v1/config/host', {
+          const updateRes = await fetch(`${prowlarrBase}/api/v1/config/host`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'X-Api-Key': prowlarrApiKey },
             body: JSON.stringify({
               ...pHostConfig,
               authenticationMethod: 'forms',
               authenticationRequired: 'disabledForLocalAddresses',
-              username: adminUser,
-              password: adminPass,
-              passwordConfirmation: adminPass,
+              ...adminLogin,
               allowedHosts: allowedHostsStr,
               trustedNetworks: trustedNetworksStr,
             }),
@@ -357,7 +371,7 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     try {
-      const lHostRes = await fetch('http://localhost:8686/api/v1/config/host', {
+      const lHostRes = await fetch(`${lidarrBase}/api/v1/config/host`, {
         headers: { 'X-Api-Key': lidarrApiKey },
         signal: AbortSignal.timeout(4000),
       });
@@ -368,16 +382,14 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
         const authWrong = lHostConfig.authenticationMethod !== 'forms' || lHostConfig.authenticationRequired !== 'disabledForLocalAddresses';
 
         if (authWrong || missingAnyIp) {
-          const updateRes = await fetch('http://localhost:8686/api/v1/config/host', {
+          const updateRes = await fetch(`${lidarrBase}/api/v1/config/host`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'X-Api-Key': lidarrApiKey },
             body: JSON.stringify({
               ...lHostConfig,
               authenticationMethod: 'forms',
               authenticationRequired: 'disabledForLocalAddresses',
-              username: adminUser,
-              password: adminPass,
-              passwordConfirmation: adminPass,
+              ...adminLogin,
               allowedHosts: allowedHostsStr,
               trustedNetworks: trustedNetworksStr,
             }),
@@ -393,13 +405,13 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     // 1. Obtener indexadores existentes en Prowlarr
-    const existingIndexersRes = await fetch('http://localhost:9696/api/v1/indexer', {
+    const existingIndexersRes = await fetch(`${prowlarrBase}/api/v1/indexer`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
     const existingIndexers = (await existingIndexersRes.json()) as any[];
 
     // 2. Obtener esquema de indexadores disponibles en Prowlarr
-    const schemaRes = await fetch('http://localhost:9696/api/v1/indexer/schema', {
+    const schemaRes = await fetch(`${prowlarrBase}/api/v1/indexer/schema`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
     const schema = (await schemaRes.json()) as any[];
@@ -414,7 +426,7 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
         if (itemSchema) {
           const itemPayload = { ...itemSchema, appProfileId: 1, enable: true };
           try {
-            const addRes = await fetch('http://localhost:9696/api/v1/indexer', {
+            const addRes = await fetch(`${prowlarrBase}/api/v1/indexer`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -433,14 +445,14 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     // 3. Vincular Lidarr en Prowlarr (para sincronización bidireccional inmediata)
-    const appsRes = await fetch('http://localhost:9696/api/v1/applications', {
+    const appsRes = await fetch(`${prowlarrBase}/api/v1/applications`, {
       headers: { 'X-Api-Key': prowlarrApiKey }
     });
     const existingApps = (await appsRes.json()) as any[];
     const lidarrLinked = existingApps.some(a => a.name === 'Lidarr' || a.implementation === 'Lidarr');
 
     if (!lidarrLinked) {
-      const appSchemaRes = await fetch('http://localhost:9696/api/v1/applications/schema', {
+      const appSchemaRes = await fetch(`${prowlarrBase}/api/v1/applications/schema`, {
         headers: { 'X-Api-Key': prowlarrApiKey }
       });
       const appSchemas = (await appSchemaRes.json()) as any[];
@@ -453,14 +465,14 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
           syncLevel: 'fullSync',
           enable: true,
           fields: lidarrSchema.fields.map((f: any) => {
-            if (f.name === 'prowlarrUrl') return { ...f, value: 'http://hostify-prowlarr:9696' };
-            if (f.name === 'baseUrl') return { ...f, value: 'http://hostify-lidarr:8686' };
+            if (f.name === 'prowlarrUrl') return { ...f, value: 'http://hostify-prowlarr:9696/tools/prowlarr' };
+            if (f.name === 'baseUrl') return { ...f, value: 'http://hostify-lidarr:8686/tools/lidarr' };
             if (f.name === 'apiKey') return { ...f, value: lidarrApiKey };
             return f;
           })
         };
 
-        const linkRes = await fetch('http://localhost:9696/api/v1/applications', {
+        const linkRes = await fetch(`${prowlarrBase}/api/v1/applications`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -476,14 +488,14 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     // 4. Vincular qBittorrent como cliente de descarga dentro de Lidarr
-    const dlRes = await fetch('http://localhost:8686/api/v1/downloadclient', {
+    const dlRes = await fetch(`${lidarrBase}/api/v1/downloadclient`, {
       headers: { 'X-Api-Key': lidarrApiKey }
     });
     const existingClients = (await dlRes.json()) as any[];
     const qbitLinked = existingClients.some(c => c.implementation === 'QBittorrent' || c.name === 'qBittorrent');
 
     if (!qbitLinked) {
-      const dlSchemaRes = await fetch('http://localhost:8686/api/v1/downloadclient/schema', {
+      const dlSchemaRes = await fetch(`${lidarrBase}/api/v1/downloadclient/schema`, {
         headers: { 'X-Api-Key': lidarrApiKey }
       });
       const dlSchemas = (await dlSchemaRes.json()) as any[];
@@ -501,7 +513,7 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
           })
         };
 
-        const addQbitRes = await fetch('http://localhost:8686/api/v1/downloadclient', {
+        const addQbitRes = await fetch(`${lidarrBase}/api/v1/downloadclient`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -517,12 +529,12 @@ export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): 
     }
 
     // 5. Garantizar carpeta raíz /music en Lidarr
-    const rootRes = await fetch('http://localhost:8686/api/v1/rootfolder', {
+    const rootRes = await fetch(`${lidarrBase}/api/v1/rootfolder`, {
       headers: { 'X-Api-Key': lidarrApiKey }
     });
     const roots = (await rootRes.json()) as any[];
     if (!roots.some(r => r.path === '/music')) {
-      await fetch('http://localhost:8686/api/v1/rootfolder', {
+      await fetch(`${lidarrBase}/api/v1/rootfolder`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

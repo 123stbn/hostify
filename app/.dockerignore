@@ -1,0 +1,5 @@
+# Ignore build artifacts and local node_modules
+node_modules
+dist
+.git
+.DS_Store

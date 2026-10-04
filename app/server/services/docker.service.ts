@@ -84,14 +84,14 @@ export class DockerClient {
 
   async listHostifyContainers(): Promise<ContainerInfo[]> {
     const serviceDefinitions = [
-      { name: 'hostify-navidrome', shortName: 'navidrome', category: 'core', desc: 'Servidor de Streaming OpenSubsonic', defaultPort: 4533 },
-      { name: 'hostify-feishin', shortName: 'feishin', category: 'core', desc: 'Reproductor Web Moderno (Estilo Spotify / Hi-Res)', defaultPort: 9188 },
-      { name: 'hostify-multi-scrobbler', shortName: 'multi-scrobbler', category: 'core', desc: 'Scrobbling & MusicBrainz Tags', defaultPort: 9078 },
-      { name: 'hostify-explo', shortName: 'explo', category: 'downloader', desc: 'Descarga Directa de Audio Web', defaultPort: 7288 },
-      { name: 'hostify-slskd', shortName: 'slskd', category: 'downloader', desc: 'Red P2P Soulseek (Hi-Fi)', defaultPort: 5030 },
-      { name: 'hostify-qbittorrent', shortName: 'qbittorrent', category: 'downloader', desc: 'Cliente BitTorrent con Búfer Seguro', defaultPort: 8080 },
-      { name: 'hostify-prowlarr', shortName: 'prowlarr', category: 'downloader', desc: 'Indexador y Búsqueda de Torrents', defaultPort: 9696 },
-      { name: 'hostify-lidarr', shortName: 'lidarr', category: 'downloader', desc: 'Gestor y Automatización de Música (*arr)', defaultPort: 8686 },
+      { name: 'hostify-navidrome', shortName: 'navidrome', defaultPort: 4533, category: 'core', desc: 'OpenSubsonic Streaming Server' },
+      { name: 'hostify-feishin', shortName: 'feishin', defaultPort: 9188, category: 'core', desc: 'Modern Web Player (Spotify Style / Hi-Res)' },
+      { name: 'hostify-multi-scrobbler', shortName: 'multi-scrobbler', defaultPort: 9078, category: 'core', desc: 'Scrobbling & MusicBrainz Tags' },
+      { name: 'hostify-explo', shortName: 'explo', defaultPort: 7288, category: 'downloader', desc: 'Direct Web Audio Downloader & Curator' },
+      { name: 'hostify-slskd', shortName: 'slskd', defaultPort: 5030, category: 'downloader', desc: 'Soulseek P2P Network (Hi-Fi)' },
+      { name: 'hostify-qbittorrent', shortName: 'qbittorrent', defaultPort: 8080, category: 'downloader', desc: 'BitTorrent Client with Safe Buffer' },
+      { name: 'hostify-prowlarr', shortName: 'prowlarr', defaultPort: 9696, category: 'downloader', desc: 'Torrent Indexer & Tracker Manager' },
+      { name: 'hostify-lidarr', shortName: 'lidarr', defaultPort: 8686, category: 'downloader', desc: 'Music Manager & Automation (*arr)' },
     ];
 
     if (!this.checkSocket()) {
@@ -100,7 +100,7 @@ export class DockerClient {
         name: s.name,
         image: `hostify/${s.shortName}:latest`,
         state: 'stopped' as const,
-        status: 'Docker Engine apagado',
+        status: 'Docker Engine stopped',
         ports: s.defaultPort ? [`${s.defaultPort}:${s.defaultPort}`] : [],
         cpuPercent: 0,
         memoryUsageMb: 0,
@@ -125,7 +125,7 @@ export class DockerClient {
             name: def.name,
             image: '',
             state: 'not_created',
-            status: 'No inicializado',
+            status: 'Not initialized',
             ports: def.defaultPort ? [`${def.defaultPort}:${def.defaultPort}`] : [],
             cpuPercent: 0,
             memoryUsageMb: 0,
@@ -137,10 +137,10 @@ export class DockerClient {
         }
 
         const state: any = found.State === 'running' ? 'running' : 'stopped';
-        const rawPorts = (found.Ports || []).map((p: any) =>
-          p.PublicPort ? `${p.PublicPort}:${p.PrivatePort}` : `${p.PrivatePort}`
-        );
-        const ports: string[] = Array.from(new Set<string>(rawPorts));
+        const rawPorts = (found.Ports || [])
+          .map((p: any) => p.PublicPort ? `${p.PublicPort}:${p.PrivatePort}` : `${p.PrivatePort}`)
+          .filter(Boolean);
+        const ports = Array.from(new Set<string>(rawPorts));
 
         return {
           id: found.Id.substring(0, 12),
@@ -148,7 +148,7 @@ export class DockerClient {
           image: found.Image,
           state,
           status: found.Status,
-          ports,
+          ports: ports.length > 0 ? ports : (def.defaultPort ? [`${def.defaultPort}`] : []),
           cpuPercent: state === 'running' ? 0.5 : 0,
           memoryUsageMb: state === 'running' ? (def.shortName === 'navidrome' ? 54 : 88) : 0,
           memoryLimitMb: 4096,
@@ -158,13 +158,13 @@ export class DockerClient {
         };
       });
     } catch (err) {
-      console.error('Error listando contenedores de Docker:', err);
+      console.error('Error listing Docker containers:', err);
       return serviceDefinitions.map(s => ({
         id: '',
         name: s.name,
         image: '',
         state: 'stopped' as const,
-        status: 'Docker Engine inaccesible',
+        status: 'Docker Engine unreachable',
         ports: s.defaultPort ? [`${s.defaultPort}:${s.defaultPort}`] : [],
         cpuPercent: 0,
         memoryUsageMb: 0,

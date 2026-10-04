@@ -5,26 +5,27 @@ import path from 'node:path';
 import { parseEnv, ENV_FILE_PATH, CONFIG_FLAG_PATH } from '../utils/env.js';
 import { dockerClient } from '../services/docker.service.js';
 import { detectTailscale, getHostIp, getLocalHostname, getMemoryStats } from '../services/network.service.js';
+import { getLicenseStatus } from '../services/license.service.js';
 
 export const systemRouter = Router();
 
-// Estado general de la aplicación
+// General application status
 systemRouter.get('/status', (_req: Request, res: Response) => {
   const isConfigured = fs.existsSync(CONFIG_FLAG_PATH);
   const currentEnv = parseEnv(ENV_FILE_PATH);
 
-  // Autodetección de PUID y PGID en Linux/macOS
+  // Auto-detect PUID and PGID on Linux/macOS
   const detectedPuid = typeof process.getuid === 'function' ? process.getuid() : 1000;
   const detectedPgid = typeof process.getgid === 'function' ? process.getgid() : 10;
   const detectedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Lima';
 
-  // Rutas inteligentes por defecto según el SO y entorno Docker
+  // Smart default paths based on OS and Docker environment
   const hostHome = process.env.HOST_HOME;
   let defaultMusic = '/volume1/music';
   let defaultDocker = '/volume1/docker';
 
   if (hostHome && fs.existsSync(hostHome)) {
-    // Docker con volumen del host montado: priorizar la carpeta real del usuario
+    // Docker with mounted host home volume: prioritize real user Music folder
     defaultMusic = path.join(hostHome, 'Music');
     defaultDocker = path.join(hostHome, 'docker');
   } else if (process.platform === 'darwin') {
@@ -34,7 +35,7 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     defaultMusic = 'C:\\music';
     defaultDocker = 'C:\\docker';
   } else {
-    // Linux host directo
+    // Direct Linux host
     const linuxHome = os.homedir();
     if (linuxHome && linuxHome !== '/' && linuxHome !== '/root') {
       defaultMusic = path.join(linuxHome, 'Music');
@@ -67,12 +68,14 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     version: '1.0.0',
     isConfigured,
     dockerAvailable: dockerClient.isAvailable(),
+    license: getLicenseStatus(),
     musicRoot: currentEnv.MUSIC_ROOT || defaultMusic,
     dockerData: currentEnv.DOCKER_DATA || defaultDocker,
+    hostifyPort: currentEnv.HOSTIFY_PORT || '3500',
     navidromePort: currentEnv.NAVIDROME_PORT || '4533',
     feishinPort: currentEnv.FEISHIN_PORT || '9188',
-    navidromeAdminUser: currentEnv.NAVIDROME_ADMIN_USER || 'admin',
-    navidromeAdminPassword: currentEnv.NAVIDROME_ADMIN_PASSWORD || 'admin',
+    navidromeAdminUser: currentEnv.NAVIDROME_ADMIN_USER || '',
+    navidromeAdminPassword: currentEnv.NAVIDROME_ADMIN_PASSWORD || '',
     listenBrainzUser: currentEnv.LZ_USER || '',
     listenBrainzToken: currentEnv.LZ_TOKEN || '',
     enableListenBrainz: enableListenBrainzSaved !== null 
@@ -91,7 +94,7 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
   });
 });
 
-// Métricas de sistema del servidor
+// Server system metrics
 systemRouter.get('/system', (_req: Request, res: Response) => {
   const mem = getMemoryStats();
 
@@ -110,7 +113,7 @@ systemRouter.get('/system', (_req: Request, res: Response) => {
   });
 });
 
-// Validar Token de ListenBrainz
+// Validate ListenBrainz user token
 systemRouter.post('/validate-token', async (req: Request, res: Response) => {
   const { token } = req.body;
   if (!token) return res.status(400).json({ valid: false, error: 'Token requerido' });
@@ -127,7 +130,7 @@ systemRouter.post('/validate-token', async (req: Request, res: Response) => {
       res.json({ valid: false, message: data.message || 'Token inválido' });
     }
   } catch {
-    // Si no hay internet o falla el request, permitimos continuar
+    // If no internet connection or request failure, allow continuing
     res.json({ valid: true, note: 'No se pudo contactar a ListenBrainz pero el token fue guardado' });
   }
 });

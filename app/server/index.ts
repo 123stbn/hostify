@@ -3,16 +3,69 @@ import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import { apiRouter } from './routes/index.js';
+import { 
+  subsonicLicenseGuard, 
+  navidromeProxyMiddleware,
+  feishinProxyMiddleware,
+  slskdProxyMiddleware,
+  slskdApiProxyMiddleware,
+  slskdHubProxyMiddleware,
+  exploProxyMiddleware,
+  exploApiProxyMiddleware,
+  qbittorrentProxyMiddleware,
+  prowlarrProxyMiddleware,
+  lidarrProxyMiddleware,
+  scrobblerProxyMiddleware
+} from './routes/proxy.routes.js';
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
 import { autoConfigureIngestionServices, ensureProwlarrLidarrSetup } from './services/provisioner.service.js';
+import { ensureNavidromeAdmin, previousNavidromeCandidates } from './services/subsonic.service.js';
 
 export const app = express();
 const PORT = process.env.PORT || process.env.HOSTIFY_PORT || 3500;
 
-app.use(cors());
+// Enable CORS with full exposure of pagination, auth and range headers for Navidrome / OpenSubsonic clients
+app.use(cors({
+  exposedHeaders: ['X-Total-Count', 'Content-Range', 'X-ND-Authorization', 'Authorization']
+}));
+
+// Normalize tool paths with trailing slashes so relative HTML assets load properly
+const TOOL_SUBPATHS = [
+  '/tools/scrobbler',
+  '/tools/slskd',
+  '/tools/explo',
+  '/tools/qbittorrent',
+  '/tools/prowlarr',
+  '/tools/lidarr',
+  '/feishin',
+  '/app'
+];
+
+app.use((req, res, next) => {
+  if (TOOL_SUBPATHS.includes(req.path)) {
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    return res.redirect(301, `${req.path}/${query}`);
+  }
+  next();
+});
+
+// Mount Subsonic API & Satellite tools reverse proxies BEFORE express.json() to preserve raw streaming body
+app.use(subsonicLicenseGuard);
+app.use(navidromeProxyMiddleware);
+app.use(feishinProxyMiddleware);
+app.use(slskdProxyMiddleware);
+app.use(slskdApiProxyMiddleware);
+app.use(slskdHubProxyMiddleware);
+app.use(exploProxyMiddleware);
+app.use(exploApiProxyMiddleware);
+app.use(qbittorrentProxyMiddleware);
+app.use(prowlarrProxyMiddleware);
+app.use(lidarrProxyMiddleware);
+app.use(scrobblerProxyMiddleware);
+
 app.use(express.json());
 
-// Montar todas las rutas modulares bajo el prefijo /api
+// Mount all modular routes under /api prefix
 app.use('/api', apiRouter);
 
 function serveStaticBundle(appInstance: express.Express) {
@@ -25,12 +78,12 @@ function serveStaticBundle(appInstance: express.Express) {
   }
 }
 
-// Iniciar servidor con soporte HMR automático en desarrollo o estáticos en producción
+// Start server with automatic Vite HMR in development or static distribution in production
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
-    // Modo Desarrollo: Vite Dev Server integrado como Middleware (HMR instantáneo)
+    // Development mode: Vite Dev Server integrated as Express middleware
     try {
       const { createServer } = await import('vite');
       const vite = await createServer({
@@ -55,26 +108,34 @@ async function startServer() {
           next(e);
         }
       });
-      console.log('[Hostify Appliance] ⚡ Modo desarrollo: Vite HMR activo con recarga automática');
+      console.log('[Hostify Appliance] ⚡ Development mode: Vite HMR active with instant reload');
     } catch (err: any) {
-      console.warn('[Hostify Appliance] No se pudo iniciar Vite middleware, fallback a dist:', err.message);
+      console.warn('[Hostify Appliance] Could not start Vite dev middleware, fallback to static dist:', err.message);
       serveStaticBundle(app);
     }
   } else {
-    // Modo Producción: Servir bundle optimizado de dist/client
+    // Production mode: Serve pre-built static bundle from dist/client
     serveStaticBundle(app);
   }
 
-  // Auto-configuración inicial al arrancar el servidor
+  // Automatic provisioner setup on initial server startup
   const startupEnv = parseEnv(ENV_FILE_PATH);
   if (startupEnv.DOCKER_DATA && startupEnv.MUSIC_ROOT) {
     autoConfigureIngestionServices(startupEnv.DOCKER_DATA, startupEnv.MUSIC_ROOT, startupEnv);
     ensureProwlarrLidarrSetup(startupEnv.DOCKER_DATA, 0);
   }
 
+  // Align Navidrome admin credentials on startup if configured
+  if (startupEnv.NAVIDROME_ADMIN_USER && startupEnv.NAVIDROME_ADMIN_PASSWORD) {
+    const candidates = previousNavidromeCandidates(startupEnv);
+    ensureNavidromeAdmin(candidates).catch((err) => {
+      console.warn('[Hostify Navidrome] Initial admin sync failed:', err?.message || err);
+    });
+  }
+
   app.listen(PORT, () => {
-    console.log(`[Hostify Appliance] Servidor escuchando en http://localhost:${PORT}`);
-    console.log(`[Hostify Appliance] Directorio de proyecto: ${PROJECT_DIR}`);
+    console.log(`[Hostify Appliance] Server running on http://localhost:${PORT}`);
+    console.log(`[Hostify Appliance] Project directory: ${PROJECT_DIR}`);
   });
 }
 

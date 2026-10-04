@@ -14,23 +14,30 @@ import { dockerClient } from '../services/docker.service.js';
 import { generateProxySnippets } from '../services/network.service.js';
 import { autoConfigureIngestionServices } from '../services/provisioner.service.js';
 import { triggerDeploy } from '../services/compose.service.js';
+import { previousNavidromeCandidates } from '../services/subsonic.service.js';
+import { requireActiveLicenseOrTrial } from './license.routes.js';
+import { activateLicenseKey } from '../services/license.service.js';
 
 export const setupRouter = Router();
 
-// Generador de Snippets para Proxy Reverso
+// Snippet generator for Reverse Proxy configurations
 setupRouter.get('/proxy-snippets', (req: Request, res: Response) => {
   const domain = (req.query.domain as string) || 'musica.tu-dominio.com';
   const naviPort = (req.query.port as string) || '4533';
   res.json(generateProxySnippets(domain, naviPort));
 });
 
-// Guardar Configuración y Completar Wizard
-setupRouter.post('/setup', async (req: Request, res: Response) => {
+// Save configuration and finalize setup wizard
+setupRouter.post('/setup', requireActiveLicenseOrTrial, async (req: Request, res: Response) => {
   if (!dockerClient.isAvailable()) {
     return res.status(400).json({ error: 'Docker Engine está apagado. Inicie Docker Desktop o Colima para configurar Hostify.' });
   }
 
   const payload = req.body;
+
+  if (payload?.licenseKey) {
+    activateLicenseKey(payload.licenseKey);
+  }
 
   try {
     const currentEnv = parseEnv(ENV_FILE_PATH);
@@ -38,11 +45,14 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       PUID: String(payload.puid || 1000),
       PGID: String(payload.pgid || 10),
       TZ: payload.tz || 'America/Lima',
+      HOST_IP: payload.hostIp || currentEnv.HOST_IP || '',
+      HOST_HOSTNAME: payload.localHostname || currentEnv.HOST_HOSTNAME || 'hostify',
+      AVAHI_IFACE: currentEnv.AVAHI_IFACE || 'eth0',
       HOSTIFY_PORT: String(payload.hostifyPort || currentEnv.HOSTIFY_PORT || '3500'),
       NAVIDROME_PORT: String(payload.navidromePort || 4533),
       FEISHIN_PORT: String(payload.feishinPort || currentEnv.FEISHIN_PORT || 9188),
-      NAVIDROME_ADMIN_USER: payload.navidromeAdminUser || 'admin',
-      NAVIDROME_ADMIN_PASSWORD: payload.navidromeAdminPassword || 'admin',
+      NAVIDROME_ADMIN_USER: payload.navidromeAdminUser || currentEnv.NAVIDROME_ADMIN_USER || '',
+      NAVIDROME_ADMIN_PASSWORD: payload.navidromeAdminPassword || currentEnv.NAVIDROME_ADMIN_PASSWORD || '',
       MUSIC_ROOT: payload.musicRoot || '/volume1/music',
       DOCKER_DATA: payload.dockerData || '/volume1/docker',
       BASE_URL: payload.domain ? `https://${payload.domain}` : '',
@@ -55,7 +65,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       PROWLARR_API_KEY: payload.prowlarrApiKey || currentEnv.PROWLARR_API_KEY || crypto.randomBytes(16).toString('hex'),
     };
 
-    // Auto-resolver nombre de usuario de ListenBrainz si solo se ingresó el token
+    // Auto-resolve ListenBrainz username if only user token was provided
     if (envData.LZ_TOKEN && !envData.LZ_USER) {
       try {
         const lzRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
@@ -67,7 +77,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
           envData.LZ_USER = lzData.user_name;
         }
       } catch {
-        // Fallback silencioso si no hay conexión a internet en el momento del setup
+        // Silent fallback if no internet connectivity during initial setup
       }
     }
 
@@ -83,13 +93,13 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       }
     }
 
-    // 2. Pre-aprovisionar Zero-Config (sin login) para qBittorrent, Prowlarr y Lidarr
+    // 2. Pre-provision Zero-Config (no login) for qBittorrent, Prowlarr, and Lidarr
     autoConfigureIngestionServices(envData.DOCKER_DATA, envData.MUSIC_ROOT, envData);
 
-    // 3. Guardar .env (incluyendo los API keys sincronizados)
+    // 3. Persist .env (including synchronized API keys)
     writeEnv(ENV_FILE_PATH, envData);
 
-    // 4. Marcar como configurado
+    // 4. Mark appliance as configured
     fs.writeFileSync(CONFIG_FLAG_PATH, JSON.stringify({
       configuredAt: new Date().toISOString(),
       modules: payload.modules || {},
@@ -97,10 +107,12 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       enableListenBrainz: payload.enableListenBrainz !== undefined ? payload.enableListenBrainz : Boolean(payload.listenBrainzToken),
     }, null, 2));
 
-    // 5. Iniciar automáticamente el despliegue del stack con tracking de logs
+    // 5. Automatically trigger stack deployment with log streaming; previous Navidrome
+    //    credentials let the deploy step update an already-provisioned admin.
+    const previousCreds = previousNavidromeCandidates(currentEnv);
     if (dockerClient.isAvailable()) {
       setTimeout(() => {
-        triggerDeploy();
+        triggerDeploy(previousCreds);
       }, 500);
     }
 
@@ -110,7 +122,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
   }
 });
 
-// Reiniciar Wizard (permite volver a pasar el onboarding manteniendo configuraciones previas)
+// Reset wizard state while preserving existing env configuration
 setupRouter.post('/reset-wizard', (_req: Request, res: Response) => {
   if (!dockerClient.isAvailable()) {
     return res.status(400).json({ error: 'Docker Engine no está disponible. Inicie Docker antes de reconfigurar.' });
@@ -130,7 +142,19 @@ setupRouter.post('/reset-wizard', (_req: Request, res: Response) => {
   }
 });
 
-// Configurar o actualizar credenciales de ListenBrainz en caliente
+// Restore previous configured state if wizard re-run is aborted/cancelled
+setupRouter.post('/cancel-wizard', (_req: Request, res: Response) => {
+  try {
+    if (!fs.existsSync(CONFIG_FLAG_PATH) && fs.existsSync(CONFIG_FLAG_PATH + '.bak')) {
+      fs.copyFileSync(CONFIG_FLAG_PATH + '.bak', CONFIG_FLAG_PATH);
+    }
+    res.json({ success: true, message: 'Wizard cancelado' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Configure or update ListenBrainz credentials at runtime
 setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) => {
   const { user, token } = req.body;
   if (!token || !token.trim()) {
@@ -143,7 +167,7 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
     env.LZ_TOKEN = token.trim();
     writeEnv(ENV_FILE_PATH, env);
 
-    // Actualizar también en Explo si existe su configuración
+    // Update Explo configuration if directory exists
     const exploDir = path.join(env.DOCKER_DATA || '/volume1/docker', 'explo', 'config');
     const exploEnv = path.join(exploDir, '.env');
     if (fs.existsSync(exploEnv)) {
@@ -155,11 +179,11 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
       } catch {}
     }
 
-    // Reiniciar multi-scrobbler y explo para que tomen las nuevas credenciales
+    // Restart multi-scrobbler and explo to pick up new credentials
     const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
     const proc = spawn('docker', ['compose', '-f', composePath, 'up', '-d', 'multi-scrobbler', 'explo'], { cwd: PROJECT_DIR });
     proc.on('close', (code) => {
-      console.log(`[Hostify] Actualizadas credenciales de ListenBrainz. Contenedores reiniciados con código ${code}`);
+      console.log(`[Hostify] ListenBrainz credentials updated. Containers restarted with code ${code}`);
     });
 
     res.json({ success: true, message: 'Credenciales de ListenBrainz actualizadas y servicios sincronizados' });
