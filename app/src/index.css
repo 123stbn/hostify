@@ -4,53 +4,64 @@
    ============================================================================== */
 
 :root {
-  /* Warm Matte Charcoal & Vinyl Base */
-  --bg-base: #111215;
-  --bg-surface: #17181d;
-  --bg-subtle: #1c1e24;
-  --bg-input: #14151a;
+  /* Obsidian Fidelity Base Canvas & Substrates */
+  --bg-base: #0B0F14;
+  --bg-surface: #111722;
+  --bg-subtle: #161F2E;
+  --bg-input: #0D131C;
 
   /* Typography */
-  --text-primary: #ececf1;
-  --text-secondary: #8c909e;
-  --text-muted: #5e6270;
-  --text-inverse: #111215;
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverse: #0B0F14;
 
-  /* Hairlines & Dividers (Single subtle 1px border, never nested) */
-  --border-subtle: #20222a;
-  --border-strong: #2c2f3a;
+  /* Hairlines & Dividers */
+  --border-subtle: #1E293B;
+  --border-strong: #334155;
+  --border-focus: rgba(6, 182, 212, 0.45);
 
-  /* Analog Warmth Accents (Acoustic Brass & Warm Amber) */
-  --accent-brass: #c98539;
-  --accent-brass-hover: #db9545;
-  --accent-brass-subtle: #241c12;
-  --accent-brass-border: #42301b;
+  /* Sonic Electric Cyan & Emerald Lossless Accents (Stitch Obsidian Scheme) */
+  --accent-primary: #06B6D4;
+  --accent-primary-hover: #22D3EE;
+  --accent-primary-subtle: rgba(6, 182, 212, 0.12);
+  --accent-primary-border: rgba(6, 182, 212, 0.32);
 
-  /* Restrained, Matte Status Colors (Zero Neon / Zero Fluorescence) */
-  --status-online-dot: #38a169;
-  --status-online-text: #68d391;
-  --status-online-bg: #14241b;
-  --status-online-border: #1e3a29;
+  /* Aliasing for backward compatibility across components */
+  --accent-brass: var(--accent-primary);
+  --accent-brass-hover: var(--accent-primary-hover);
+  --accent-brass-subtle: var(--accent-primary-subtle);
+  --accent-brass-border: var(--accent-primary-border);
 
-  --status-warn-dot: #c08528;
-  --status-warn-text: #ecc94b;
-  --status-warn-bg: #262013;
-  --status-warn-border: #42361c;
+  --accent-cyan: #06B6D4;
+  --accent-blue: #3B82F6;
+  --accent-emerald: #10B981;
 
-  --status-off-dot: #718096;
-  --status-off-text: #a0aec0;
-  --status-off-bg: #1a1d24;
-  --status-off-border: #292d38;
+  /* Obsidian Fidelity Status Indicators */
+  --status-online-dot: #10B981;
+  --status-online-text: #34D399;
+  --status-online-bg: rgba(16, 185, 129, 0.12);
+  --status-online-border: rgba(16, 185, 129, 0.28);
 
-  --status-err-dot: #e53e3e;
-  --status-err-text: #fc8181;
-  --status-err-bg: #291417;
-  --status-err-border: #4a1f25;
+  --status-warn-dot: #F59E0B;
+  --status-warn-text: #FBBF24;
+  --status-warn-bg: rgba(245, 158, 11, 0.12);
+  --status-warn-border: rgba(245, 158, 11, 0.28);
+
+  --status-off-dot: #64748B;
+  --status-off-text: #94A3B8;
+  --status-off-bg: rgba(100, 116, 139, 0.12);
+  --status-off-border: rgba(100, 116, 139, 0.28);
+
+  --status-err-dot: #EF4444;
+  --status-err-text: #F87171;
+  --status-err-bg: rgba(239, 68, 68, 0.12);
+  --status-err-border: rgba(239, 68, 68, 0.28);
 
   /* Geometry & Typography System */
   --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, Menlo, monospace;
-  --radius-xs: 3px;
+  --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-full: 9999px;
@@ -199,7 +210,7 @@ body {
 
 .btn-primary {
   background: var(--accent-brass);
-  color: #171108;
+  color: #04141E;
   font-weight: 600;
   border-color: var(--accent-brass);
 }
@@ -413,7 +424,7 @@ body {
 
 .step-indicator.active .step-num-pill {
   background: var(--accent-brass);
-  color: #171108;
+  color: #04141E;
   border-color: var(--accent-brass);
 }
 
@@ -462,7 +473,7 @@ body {
   padding: 12px 14px;
   font-family: var(--font-mono);
   font-size: 0.8rem;
-  color: #c4c8d4;
+  color: #cbd5e1;
   overflow-x: auto;
   line-height: 1.5;
 }

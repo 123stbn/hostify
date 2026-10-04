@@ -2,6 +2,7 @@ import React from 'react';
 import { Sliders, RefreshCw, Languages, ShieldCheck, Key, AlertTriangle } from 'lucide-react';
 import { AppStatus } from '../types.js';
 import { useI18n } from '../i18n.js';
+import { HostifyLogo } from './HostifyLogo.js';
 
 interface NavbarProps {
   status: AppStatus | null;
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="navbar">
       <div className="container nav-wrapper">
         <div className="nav-brand">
+          <HostifyLogo size={32} />
           <div>
             <span className="brand-text">{t('appName')}</span>
             <span className="brand-subtitle" style={{ marginLeft: '10px' }}>
