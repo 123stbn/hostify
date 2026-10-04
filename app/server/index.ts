@@ -4,7 +4,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { apiRouter } from './routes/index.js';
 import { 
-  subsonicLicenseGuard, 
   navidromeProxyMiddleware,
   feishinProxyMiddleware,
   slskdProxyMiddleware,
@@ -50,7 +49,6 @@ app.use((req, res, next) => {
 });
 
 // Mount Subsonic API & Satellite tools reverse proxies BEFORE express.json() to preserve raw streaming body
-app.use(subsonicLicenseGuard);
 app.use(navidromeProxyMiddleware);
 app.use(feishinProxyMiddleware);
 app.use(slskdProxyMiddleware);

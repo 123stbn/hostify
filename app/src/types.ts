@@ -13,23 +13,11 @@ export interface ContainerInfo {
   description: string;
 }
 
-export interface LicenseStatus {
-  status: 'licensed' | 'trial' | 'expired';
-  isTrial: boolean;
-  tier: string;
-  licensee?: string;
-  licenseId?: string;
-  daysRemaining?: number;
-  validUntil?: string | null;
-  message?: string;
-}
-
 export interface AppStatus {
   app: string;
   version: string;
   isConfigured: boolean;
   dockerAvailable: boolean;
-  license?: LicenseStatus;
   musicRoot: string;
   dockerData: string;
   hostifyPort?: string;

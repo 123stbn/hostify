@@ -5,7 +5,7 @@ import { DeploymentState } from '../types/index.js';
 import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv } from '../utils/env.js';
 import { dockerClient } from './docker.service.js';
 import { ensureProwlarrLidarrSetup } from './provisioner.service.js';
-import { ensureNavidromeAdmin, NavidromeCredentials } from './subsonic.service.js';
+import { ensureNavidromeAdmin, triggerNavidromeScan, NavidromeCredentials } from './subsonic.service.js';
 
 let deploymentState: DeploymentState = {
   isDeploying: false,
@@ -147,19 +147,40 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   };
 
   const runCompose = (retryCount = 0) => {
-    // Explicitly pin the compose project name to 'hostify' to avoid discrepancies across environments
-    const cmdArgs = ['compose', '-p', 'hostify', '-f', composePath, 'up', '-d', ...selectedServices];
-    const proc = spawn('docker', cmdArgs, { cwd: PROJECT_DIR });
+    // Explicitly pin the compose project name to 'hostify' and override process.env with updated .env
+    const envFromFile = parseEnv(ENV_FILE_PATH);
+    const spawnEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...envFromFile,
+    };
+
+    const cmdArgs = [
+      'compose',
+      '--env-file', ENV_FILE_PATH,
+      '-p', 'hostify',
+      '-f', composePath,
+      'up',
+      '-d',
+      '--remove-orphans',
+      ...selectedServices,
+    ];
+
+    const proc = spawn('docker', cmdArgs, {
+      cwd: PROJECT_DIR,
+      env: spawnEnv,
+    });
+
+    const cleanLine = (str: string) => str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
 
     proc.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(Boolean);
+      const lines = data.toString().split('\n').map(cleanLine).filter(Boolean);
       for (const line of lines) {
         deploymentState.logs.push(`[${new Date().toLocaleTimeString()}] ${line}`);
       }
     });
 
     proc.stderr.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(Boolean);
+      const lines = data.toString().split('\n').map(cleanLine).filter(Boolean);
       for (const line of lines) {
         deploymentState.logs.push(`[${new Date().toLocaleTimeString()}] ${line}`);
       }
@@ -178,6 +199,17 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
         ensureNavidromeAdmin(previousNavidromeCreds).catch((err) => {
           console.warn('[Hostify Navidrome] Admin sync failed:', err?.message || err);
         });
+
+        // Trigger library scan on Navidrome so new/updated music folders are immediately indexed
+        setTimeout(() => {
+          triggerNavidromeScan().then((scanRes) => {
+            if (scanRes) {
+              console.log('[Hostify Navidrome] Library scan triggered successfully after deploy');
+            }
+          }).catch((err) => {
+            console.warn('[Hostify Navidrome] Library scan trigger failed:', err?.message || err);
+          });
+        }, 4000);
       } else {
         if (retryCount < 2) {
           const delaySec = (retryCount + 1) * 3;

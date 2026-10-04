@@ -20,9 +20,6 @@ services:
       - HOSTIFY_PORT=3500
       - DOCKER_SOCK=/var/run/docker.sock
       - COMPOSE_PROJECT_DIR=/app/project
-      # Storage paths on your server or NAS (e.g. /volume1/music on Ugreen / Synology)
-      - MUSIC_ROOT=${MUSIC_ROOT:-/volume1/music}
-      - DOCKER_DATA=${DOCKER_DATA:-/volume1/docker/hostify}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}

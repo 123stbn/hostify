@@ -136,7 +136,12 @@ export async function triggerNavidromeScan(): Promise<any> {
 
   try {
     const scanUrl = `${target}/rest/startScan.view?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify&f=json&fullScan=true`;
-    const resp = await fetch(scanUrl, { signal: AbortSignal.timeout(5000) });
+    const resp = await fetch(scanUrl, {
+      headers: {
+        'Remote-User': creds.user,
+      },
+      signal: AbortSignal.timeout(5000),
+    });
     return await resp.json();
   } catch (err: any) {
     console.warn('[Hostify Subsonic] Error triggering scan on Navidrome:', err.message);

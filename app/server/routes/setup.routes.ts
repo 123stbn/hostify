@@ -15,8 +15,6 @@ import { generateProxySnippets } from '../services/network.service.js';
 import { autoConfigureIngestionServices } from '../services/provisioner.service.js';
 import { triggerDeploy } from '../services/compose.service.js';
 import { previousNavidromeCandidates } from '../services/subsonic.service.js';
-import { requireActiveLicenseOrTrial } from './license.routes.js';
-import { activateLicenseKey } from '../services/license.service.js';
 
 export const setupRouter = Router();
 
@@ -28,16 +26,12 @@ setupRouter.get('/proxy-snippets', (req: Request, res: Response) => {
 });
 
 // Save configuration and finalize setup wizard
-setupRouter.post('/setup', requireActiveLicenseOrTrial, async (req: Request, res: Response) => {
+setupRouter.post('/setup', async (req: Request, res: Response) => {
   if (!dockerClient.isAvailable()) {
     return res.status(400).json({ error: 'Docker Engine está apagado. Inicie Docker Desktop o Colima para configurar Hostify.' });
   }
 
   const payload = req.body;
-
-  if (payload?.licenseKey) {
-    activateLicenseKey(payload.licenseKey);
-  }
 
   try {
     const currentEnv = parseEnv(ENV_FILE_PATH);
@@ -181,7 +175,11 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
 
     // Restart multi-scrobbler and explo to pick up new credentials
     const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
-    const proc = spawn('docker', ['compose', '-f', composePath, 'up', '-d', 'multi-scrobbler', 'explo'], { cwd: PROJECT_DIR });
+    const spawnEnv = { ...process.env, ...env };
+    const proc = spawn('docker', ['compose', '--env-file', ENV_FILE_PATH, '-p', 'hostify', '-f', composePath, 'up', '-d', 'multi-scrobbler', 'explo'], {
+      cwd: PROJECT_DIR,
+      env: spawnEnv,
+    });
     proc.on('close', (code) => {
       console.log(`[Hostify] ListenBrainz credentials updated. Containers restarted with code ${code}`);
     });

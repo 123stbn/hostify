@@ -30,25 +30,55 @@ export function countFilesRecursively(dirPath: string): number {
 export async function getStorageStatus() {
   const env = parseEnv(ENV_FILE_PATH);
   const musicRoot = env.MUSIC_ROOT || '/volume1/music';
+  const effectiveMusicDir = fs.existsSync(musicRoot)
+    ? musicRoot
+    : (fs.existsSync('/music') ? '/music' : musicRoot);
 
   const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
   const folderStatus: Record<string, { exists: boolean; path: string; fileCount: number }> = {};
 
-  let totalFiles = 0;
+  let subdirsTotal = 0;
   for (const sub of subdirs) {
-    const fullPath = path.join(musicRoot, sub);
+    const fullPath = path.join(effectiveMusicDir, sub);
     const exists = fs.existsSync(fullPath);
     let count = 0;
     if (exists) {
       try {
         count = countFilesRecursively(fullPath);
-        totalFiles += count;
+        subdirsTotal += count;
       } catch {
         count = 0;
       }
     }
-    folderStatus[sub] = { exists, path: fullPath, fileCount: count };
+    folderStatus[sub] = { exists, path: path.join(musicRoot, sub), fileCount: count };
   }
+
+  // Count all audio files across the entire music directory recursively (including nested custom folders)
+  let totalFiles = 0;
+  if (fs.existsSync(effectiveMusicDir)) {
+    try {
+      totalFiles = countFilesRecursively(effectiveMusicDir);
+    } catch {
+      totalFiles = subdirsTotal;
+    }
+  } else {
+    totalFiles = subdirsTotal;
+  }
+
+  // Any music file in musicRoot outside explo, slskd, and torrents belongs to the user's personal collection
+  const exploCount = folderStatus.explo?.fileCount || 0;
+  const slskdCount = folderStatus.slskd?.fileCount || 0;
+  const torrentsCount = folderStatus.torrents?.fileCount || 0;
+  const personalCount = Math.max(
+    folderStatus.personal?.fileCount || 0,
+    totalFiles - (exploCount + slskdCount + torrentsCount)
+  );
+
+  folderStatus.personal = {
+    exists: folderStatus.personal?.exists || fs.existsSync(effectiveMusicDir),
+    path: path.join(musicRoot, 'personal'),
+    fileCount: personalCount
+  };
 
   // Si se detectan archivos nuevos o modificados, auto-disparar escaneo en Navidrome
   if (lastKnownTrackCount !== -1 && lastKnownTrackCount !== totalFiles) {
@@ -59,7 +89,7 @@ export async function getStorageStatus() {
 
   return {
     musicRoot,
-    exists: fs.existsSync(musicRoot),
+    exists: fs.existsSync(effectiveMusicDir),
     folders: folderStatus,
     totalTrackCount: totalFiles,
   };

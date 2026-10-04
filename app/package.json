@@ -8,13 +8,12 @@
     "dev:server": "tsx watch server/index.ts",
     "dev:client": "vite",
     "build:client": "vite build",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/server.bundle.cjs --external:vite --external:bytenode --external:http-proxy-middleware && bytenode -c dist/server.bundle.cjs && rm dist/server.bundle.cjs && node -e \"fs.writeFileSync('dist/index.cjs', 'require(\\\"bytenode\\\");\\nrequire(\\\"./server.bundle.jsc\\\");\\n')\"",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/index.cjs --external:vite --external:http-proxy-middleware",
     "build": "pnpm run build:client && pnpm run build:server",
     "test": "tsx --test server/**/*.test.ts",
     "start": "NODE_ENV=production node dist/index.cjs"
   },
   "dependencies": {
-    "bytenode": "^1.7.0",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "http-proxy-middleware": "^4.2.0",

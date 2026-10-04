@@ -4,7 +4,7 @@
 
 It completely eliminates the need to edit terminal YAML files, debug Linux permissions, or struggle with complex reverse proxy network configurations through its intuitive web-based **Setup Wizard** and **Unified Management Dashboard**.
 
-> 🇪🇸 **Documentación en Español**: Consulta [README.es.md](./README.es.md).
+> 🇪🇸 **Documentación en Español**: Consulta [README.es.md](./docs/README.es.md).
 
 ---
 

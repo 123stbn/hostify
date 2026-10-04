@@ -7,7 +7,6 @@ interface NavbarProps {
   status: AppStatus | null;
   onOpenSettings: () => void;
   onResetWizard: () => void;
-  onOpenLicense: () => void;
   activeView: 'dashboard' | 'wizard';
 }
 
@@ -15,7 +14,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   status, 
   onOpenSettings, 
   onResetWizard, 
-  onOpenLicense, 
   activeView 
 }) => {
   const isDockerAvailable = Boolean(status?.dockerAvailable);
@@ -24,10 +22,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const toggleLanguage = () => {
     setLang(lang === 'es' ? 'en' : 'es');
   };
-
-  const license = status?.license;
-  const isLicensed = license?.status === 'licensed';
-  const isExpired = license?.status === 'expired';
 
   return (
     <header className="navbar">
@@ -45,42 +39,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {status && (
             <div className={`status-pill ${isDockerAvailable ? 'online' : 'error'}`}>
               <span className="status-dot"></span>
-              <span>{isDockerAvailable ? t('online') : t('engineStopped')}</span>
-            </div>
-          )}
-
-          {/* License Status Badge Button */}
-          {license && (
-            <button
-              id="btn-nav-license"
-              className="btn btn-secondary btn-sm"
-              onClick={onOpenLicense}
-              title={isLicensed 
-                ? `${t('licensedTo')}: ${license.licensee || 'Pro User'}` 
-                : isExpired 
-                  ? t('licenseExpired') 
-                  : t('trialRemaining', { days: license.daysRemaining ?? 14 })}
-              style={{
-                fontSize: '0.74rem',
-                padding: '4px 10px',
-                fontWeight: 600,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                color: isLicensed ? '#4ade80' : isExpired ? '#ef4444' : '#eab308',
-                borderColor: isLicensed ? 'rgba(74, 222, 128, 0.3)' : isExpired ? 'rgba(239, 68, 68, 0.3)' : 'rgba(234, 179, 8, 0.3)',
-                backgroundColor: isLicensed ? 'rgba(74, 222, 128, 0.08)' : isExpired ? 'rgba(239, 68, 68, 0.08)' : 'rgba(234, 179, 8, 0.08)'
-              }}
-            >
-              {isLicensed ? <ShieldCheck size={13} /> : isExpired ? <AlertTriangle size={13} /> : <Key size={13} />}
               <span>
-                {isLicensed 
-                  ? (license.tier === 'lifetime' ? 'LIFETIME' : 'PRO') 
-                  : isExpired 
-                    ? t('licenseExpired') 
-                    : t('trialRemaining', { days: license.daysRemaining ?? 14 })}
+                {isDockerAvailable
+                  ? (status.isConfigured ? t('online') : t('dockerReady'))
+                  : t('engineStopped')}
               </span>
-            </button>
+            </div>
           )}
 
           {/* Minimalist Language Switcher */}

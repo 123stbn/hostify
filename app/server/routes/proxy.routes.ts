@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import fs from 'node:fs';
-import { getLicenseStatus } from '../services/license.service.js';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
 
 // Helper to resolve internal container DNS or localhost
@@ -18,37 +17,6 @@ export function getNavidromeTarget(): string {
   return resolveServiceTarget('navidrome', 4533);
 }
 
-// Subsonic license guard middleware
-export function subsonicLicenseGuard(req: Request, res: Response, next: NextFunction) {
-  const reqPath = req.path || req.url || '';
-  if (!reqPath.startsWith('/rest') && !reqPath.startsWith('/share')) {
-    return next();
-  }
-
-  const license = getLicenseStatus();
-  if (license.status === 'expired') {
-    const isJson = req.query.f === 'json' || req.headers.accept?.includes('application/json');
-    if (isJson) {
-      return res.status(402).json({
-        'subsonic-response': {
-          status: 'failed',
-          version: '1.16.1',
-          error: {
-            code: 50,
-            message: 'Hostify license expired. Please enter a valid license key at the Hostify dashboard.'
-          }
-        }
-      });
-    }
-
-    return res.status(402).type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>
-<subsonic-response xmlns="http://subsonic.org/restapi" status="failed" version="1.16.1">
-  <error code="50" message="Hostify license expired. Please enter a valid license key at the Hostify dashboard."/>
-</subsonic-response>`);
-  }
-  next();
-}
-
 // Transparent Subsonic reverse proxy middleware
 export const navidromeProxyMiddleware = createProxyMiddleware({
   pathFilter: ['/rest/**', '/share/**', '/auth/**', '/app/**'],
@@ -56,6 +24,15 @@ export const navidromeProxyMiddleware = createProxyMiddleware({
   changeOrigin: true,
   ws: true,
   on: {
+    proxyReq: (proxyReq, req: any) => {
+      const env = parseEnv(ENV_FILE_PATH);
+      const adminUser = env.NAVIDROME_ADMIN_USER?.trim() || 'admin';
+      const reqPath = req.originalUrl || req.url || '';
+      // Inject Remote-User header for Navidrome Web UI and auth sessions
+      if (!reqPath.startsWith('/rest') && !reqPath.startsWith('/share')) {
+        proxyReq.setHeader('Remote-User', adminUser);
+      }
+    },
     error: (err: any, _req: any, res: any) => {
       console.error('[Hostify Gateway] Navidrome upstream error:', err?.message || err);
       if (res && !res.headersSent && typeof res.status === 'function') {

@@ -5,7 +5,6 @@ import path from 'node:path';
 import { parseEnv, ENV_FILE_PATH, CONFIG_FLAG_PATH } from '../utils/env.js';
 import { dockerClient } from '../services/docker.service.js';
 import { detectTailscale, getHostIp, getLocalHostname, getMemoryStats } from '../services/network.service.js';
-import { getLicenseStatus } from '../services/license.service.js';
 
 export const systemRouter = Router();
 
@@ -68,7 +67,6 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     version: '1.0.0',
     isConfigured,
     dockerAvailable: dockerClient.isAvailable(),
-    license: getLicenseStatus(),
     musicRoot: currentEnv.MUSIC_ROOT || defaultMusic,
     dockerData: currentEnv.DOCKER_DATA || defaultDocker,
     hostifyPort: currentEnv.HOSTIFY_PORT || '3500',
@@ -80,7 +78,7 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     listenBrainzToken: currentEnv.LZ_TOKEN || '',
     enableListenBrainz: enableListenBrainzSaved !== null 
       ? enableListenBrainzSaved 
-      : Boolean(currentEnv.LZ_TOKEN || currentEnv.LZ_USER),
+      : (isConfigured ? Boolean(currentEnv.LZ_TOKEN || currentEnv.LZ_USER) : true),
     modules: configuredModules,
     remoteAccess: remoteAccess || (currentEnv.BASE_URL ? 'proxy' : (ts.detected ? 'tailscale' : 'local')),
     domain: currentEnv.BASE_URL ? currentEnv.BASE_URL.replace(/^https?:\/\//, '') : '',

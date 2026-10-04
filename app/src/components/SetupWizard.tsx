@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   HardDrive, Music, Radio, Shield, Globe,
   ArrowRight, ArrowLeft, Check, AlertCircle,
   Layers, DownloadCloud, CheckCircle2, Server, FolderSearch,
-  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles
+  Clock, Sliders, Lightbulb, ShieldCheck, ExternalLink, Loader2, RotateCcw, Disc3, Sparkles, Key
 } from 'lucide-react';
 import { AppStatus } from '../types.js';
 import { DirectoryPickerModal } from './DirectoryPickerModal.js';
 import { useI18n } from '../i18n.js';
 
-const DRAFT_STORAGE_KEY = 'hostify_wizard_draft_v1';
+const DRAFT_STORAGE_KEY = 'hostify_wizard_draft_v2';
 
 function loadWizardDraft() {
   try {
+    localStorage.removeItem('hostify_wizard_draft_v1'); // Remove legacy 5-step draft
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
       return JSON.parse(raw);
@@ -94,7 +95,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const draft = loadWizardDraft();
 
   const [currentStep, setCurrentStep] = useState<number>(() => {
-    if (draft?.currentStep && draft.currentStep >= 1 && draft.currentStep <= 5) {
+    if (draft?.currentStep && draft.currentStep >= 1 && draft.currentStep <= 6) {
       return draft.currentStep;
     }
     return 1;
@@ -129,7 +130,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const [navidromeAdminPassword, setNavidromeAdminPassword] = useState<string>(draft?.navidromeAdminPassword ?? (status?.navidromeAdminPassword || ''));
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [showAdvancedNetwork, setShowAdvancedNetwork] = useState(false);
-  const [enableListenBrainz, setEnableListenBrainz] = useState<boolean>(draft?.enableListenBrainz ?? (status?.enableListenBrainz ?? true));
+  const [enableListenBrainz, setEnableListenBrainz] = useState<boolean>(() => {
+    if (draft?.enableListenBrainz !== undefined) return draft.enableListenBrainz;
+    if (status?.isConfigured && status?.enableListenBrainz !== undefined) return status.enableListenBrainz;
+    return true; // Default to checked for onboarding to encourage users to register
+  });
   const cleanToken = (token?: string) => (!token || token.includes('tu_listenbrainz_token') ? '' : token);
   const cleanUser = (user?: string) => (!user || user === '123stbn' ? '' : user);
 
@@ -184,6 +189,68 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     draft?.remoteAccess ?? (status?.tailscaleDetected ? 'tailscale' : 'local')
   );
   const [domain, setDomain] = useState<string>(draft?.domain ?? (status?.domain || ''));
+
+  // Deployment Modal State & Live Log Streaming
+  const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
+  const [deployLogs, setDeployLogs] = useState<string[]>([]);
+  const [deployError, setDeployError] = useState<string | null>(null);
+  const [deployFinished, setDeployFinished] = useState(false);
+  const logBoxRef = useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!deployModalOpen) return;
+
+    let consecutiveDone = 0;
+    const pollStatus = async () => {
+      try {
+        const res = await fetch('/api/compose/status');
+        if (res.ok) {
+          const state = await res.json();
+          if (state.logs && state.logs.length > 0) {
+            setDeployLogs(state.logs);
+          }
+          if (state.lastError) {
+            setDeployError(state.lastError);
+          }
+          if (!state.isDeploying && (state.finishedAt || state.lastError)) {
+            consecutiveDone++;
+            if (consecutiveDone >= 2) {
+              setIsDeploying(false);
+              setDeployFinished(true);
+            }
+          } else {
+            consecutiveDone = 0;
+            setIsDeploying(true);
+          }
+        }
+      } catch {
+        // Handled silently during service reload
+      }
+    };
+
+    pollStatus();
+    const interval = setInterval(pollStatus, 1200);
+    return () => clearInterval(interval);
+  }, [deployModalOpen]);
+
+  React.useEffect(() => {
+    if (logBoxRef.current) {
+      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+    }
+  }, [deployLogs]);
+
+  const handleRetryDeploy = async () => {
+    setIsDeploying(true);
+    setDeployFinished(false);
+    setDeployError(null);
+    setDeployLogs(prev => [...prev, isEn ? 'Retrying service deployment...' : 'Reintentando despliegue de servicios...']);
+    try {
+      await fetch('/api/compose/deploy', { method: 'POST' });
+    } catch (err: any) {
+      setDeployError(err.message);
+    }
+  };
 
   // Sincronizar con el estado detectado del servidor si no había un borrador previo guardado
   React.useEffect(() => {
@@ -380,6 +447,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   const handleNextStep = async () => {
     setErrorMsg('');
     if (currentStep === 1) {
+      // Welcome step: proceed directly to Step 2
+    }
+
+    if (currentStep === 2) {
       if (!musicRoot.trim()) {
         setErrorMsg('Por favor especifica una ruta válida para tu fonoteca de música.');
         return;
@@ -406,7 +477,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       }
     }
 
-    if (currentStep === 2) {
+    if (currentStep === 3) {
       if (!navidromeAdminUser.trim()) {
         setErrorMsg('Por favor especifica un nombre de usuario administrador.');
         return;
@@ -421,7 +492,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       }
     }
 
-    if (currentStep === 3) {
+    if (currentStep === 4) {
       if (!modules.explo && !modules.slskd && !modules.lidarr) {
         setErrorMsg('Por favor selecciona al menos una fuente para poblar tu fonoteca.');
         return;
@@ -466,10 +537,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
       if (data.success) {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
-        setTimeout(() => {
-          setLoading(false);
-          onComplete();
-        }, 1200);
+        setLoading(false);
+        setDeployModalOpen(true);
+        setIsDeploying(true);
+        setDeployFinished(false);
+        setDeployError(null);
+        setDeployLogs([isEn ? 'Initiating Docker service deployment...' : 'Iniciando despliegue de servicios Docker...']);
       } else {
         setErrorMsg(data.error || 'Ocurrió un error al configurar');
         setLoading(false);
@@ -531,11 +604,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       {/* Indicadores de Paso (Línea simple, sin cajas) */}
       <div className="wizard-steps">
         {[
-          { num: 1, title: t('stepLocation') },
-          { num: 2, title: t('stepAccount') },
-          { num: 3, title: t('stepSources') },
-          { num: 4, title: t('stepMobility') },
-          { num: 5, title: t('stepConfirm') },
+          { num: 1, title: t('stepLicense') },
+          { num: 2, title: t('stepLocation') },
+          { num: 3, title: t('stepAccount') },
+          { num: 4, title: t('stepSources') },
+          { num: 5, title: t('stepMobility') },
+          { num: 6, title: t('stepConfirm') },
         ].map(step => (
           <div
             key={step.num}
@@ -556,7 +630,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
       {/* Contenido del Paso */}
       <div style={{ minHeight: '300px' }}>
-        {/* PASO 1: UBICACIÓN */}
+        {/* PASO 1: LICENCIA Y ACTIVACIÓN */}
         {currentStep === 1 && (
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
@@ -566,8 +640,120 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               {t('step1Desc')}
             </p>
 
+            {/* Tarjetas de Bienvenida Open Source y Diagnóstico del Sistema */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+              {/* Card 1: 100% Open Source */}
+              <div
+                style={{
+                  padding: '18px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid rgba(74, 222, 128, 0.3)',
+                  background: 'rgba(74, 222, 128, 0.04)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'rgba(74, 222, 128, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#4ade80'
+                  }}>
+                    <ShieldCheck size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, color: '#4ade80' }}>
+                      {t('step1OpenSourceBadge')}
+                    </h3>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {t('step1OpenSourceDesc')}
+                </p>
+                <div style={{
+                  marginTop: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-muted)'
+                }}>
+                  <CheckCircle2 size={13} color="#4ade80" />
+                  <span>Sin telemetría • Sin DRM • Modo 100% Local</span>
+                </div>
+              </div>
+
+              {/* Card 2: Diagnóstico del Entorno */}
+              <div
+                style={{
+                  padding: '18px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--bg-surface)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: 'rgba(99, 102, 241, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#818cf8'
+                  }}>
+                    <Server size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600 }}>
+                      {t('step1DiagnosticTitle')}
+                    </h3>
+                  </div>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  {t('step1DiagnosticDesc')}
+                </p>
+                <div style={{
+                  marginTop: '14px',
+                  padding: '8px 10px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  borderRadius: 'var(--radius-xs)',
+                  fontSize: '0.76rem',
+                  color: 'var(--text-muted)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <div>
+                    Motor Docker: <strong style={{ color: status?.dockerAvailable ? '#4ade80' : '#ef4444' }}>
+                      {status?.dockerAvailable ? 'En línea' : 'Detenido'}
+                    </strong>
+                  </div>
+                  <div>
+                    Permisos de Ingesta: <strong style={{ color: 'var(--text-secondary)' }}>PUID {puid} / PGID {pgid}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PASO 2: UBICACIÓN */}
+        {currentStep === 2 && (
+          <div>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
+              {t('step2Title')}
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '20px', lineHeight: 1.5 }}>
+              {t('step2Desc')}
+            </p>
+
             <div className="form-group">
-              <label className="form-label">{t('step1MusicLabel')}</label>
+              <label className="form-label">{t('step2MusicLabel')}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   id="input-music-root"
@@ -588,7 +774,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 </button>
               </div>
               <p className="input-hint">
-                {t('step1MusicHint')}
+                {t('step2MusicHint')}
               </p>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                 <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/personal</strong> • {isEn ? 'Manual uploads' : 'Subidas manuales'}</span>
@@ -599,7 +785,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
             </div>
 
             <div className="form-group">
-              <label className="form-label">{t('step1DockerLabel')}</label>
+              <label className="form-label">{t('step2DockerLabel')}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   id="input-docker-data"
@@ -622,7 +808,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
             </div>
 
             <div className="form-group">
-              <label className="form-label">{t('step1TimezoneLabel')}</label>
+              <label className="form-label">{t('step2TimezoneLabel')}</label>
               <select
                 id="select-timezone"
                 className="form-input"
@@ -651,10 +837,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 onClick={() => setShowAdvancedPerms(!showAdvancedPerms)}
               >
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                  {t('step1PermsToggle', { puid, pgid })}
+                  {t('step2PermsToggle', { puid, pgid })}
                 </span>
                 <span style={{ fontSize: '0.78rem', color: 'var(--accent-brass)', textDecoration: 'underline' }}>
-                  {showAdvancedPerms ? t('step1Hide') : t('step1Adjust')}
+                  {showAdvancedPerms ? t('step2Hide') : t('step2Adjust')}
                 </span>
               </div>
 
@@ -684,19 +870,19 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           </div>
         )}
 
-        {/* PASO 2: TU CUENTA */}
-        {currentStep === 2 && (
+        {/* PASO 3: TU CUENTA */}
+        {currentStep === 3 && (
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
-              {t('step2Title')}
+              {t('step3Title')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '20px', lineHeight: 1.5 }}>
-              {t('step2Desc')}
+              {t('step3Desc')}
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">{t('step2AdminUser')}</label>
+                <label className="form-label">{t('step3AdminUser')}</label>
                 <input
                   id="input-navidrome-user"
                   type="text"
@@ -708,13 +894,13 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ marginBottom: 0 }}>{t('step2Password')}</label>
+                  <label className="form-label" style={{ marginBottom: 0 }}>{t('step3Password')}</label>
                   <button
                     type="button"
                     onClick={() => setShowAdminPassword(!showAdminPassword)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.74rem', cursor: 'pointer' }}
                   >
-                    {showAdminPassword ? t('step2Hide') : t('step2Show')}
+                    {showAdminPassword ? t('step3Hide') : t('step3Show')}
                   </button>
                 </div>
                 <input
@@ -730,7 +916,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', marginBottom: '20px' }}>
               <div>
-                <span style={{ fontSize: '0.84rem', fontWeight: '500' }}>{t('step2StreamingPort')} </span>
+                <span style={{ fontSize: '0.84rem', fontWeight: '500' }}>{t('step3StreamingPort')} </span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.84rem' }}>{hostifyPort}</span>
               </div>
             </div>
@@ -743,10 +929,10 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               >
                 <div>
                   <h3 style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                    {t('step2LzTitle')}
+                    {t('step3LzTitle')}
                   </h3>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {t('step2LzDesc')}
+                    {t('step3LzDesc')}
                   </p>
                 </div>
                 <input
@@ -760,14 +946,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               {enableListenBrainz && (
                 <div style={{ marginTop: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <label className="form-label" style={{ marginBottom: 0 }}>{t('step2LzToken')}</label>
+                    <label className="form-label" style={{ marginBottom: 0 }}>{t('step3LzToken')}</label>
                     <a
                       href="https://listenbrainz.org/profile/"
                       target="_blank"
                       rel="noreferrer"
                       style={{ fontSize: '0.74rem', color: 'var(--accent-brass)', textDecoration: 'none' }}
                     >
-                      {t('step2LzLink')}
+                      {t('step3LzLink')}
                     </a>
                   </div>
                   <div style={{ position: 'relative' }}>
@@ -816,14 +1002,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           </div>
         )}
 
-        {/* PASO 3: FUENTES */}
-        {currentStep === 3 && (
+        {/* PASO 4: FUENTES */}
+        {currentStep === 4 && (
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
-              {t('step3Title')}
+              {t('step4Title')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '20px', lineHeight: 1.5 }}>
-              {t('step3Desc')}
+              {t('step4Desc')}
             </p>
 
             <div className="flat-list">
@@ -836,8 +1022,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 <div className="flat-row-info">
                   <Sparkles size={18} className="flat-icon" />
                   <div>
-                    <span className="flat-row-title">{t('step3ExploTitle')}</span>
-                    <p className="flat-row-desc">{t('step3ExploDesc')}</p>
+                    <span className="flat-row-title">{t('step4ExploTitle')}</span>
+                    <p className="flat-row-desc">{t('step4ExploDesc')}</p>
                   </div>
                 </div>
                 <input
@@ -857,8 +1043,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 <div className="flat-row-info">
                   <Music size={18} className="flat-icon" />
                   <div>
-                    <span className="flat-row-title">{t('step3SlskdTitle')}</span>
-                    <p className="flat-row-desc">{t('step3SlskdDesc')}</p>
+                    <span className="flat-row-title">{t('step4SlskdTitle')}</span>
+                    <p className="flat-row-desc">{t('step4SlskdDesc')}</p>
                   </div>
                 </div>
                 <input
@@ -879,8 +1065,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 <div className="flat-row-info">
                   <Disc3 size={18} className="flat-icon" />
                   <div>
-                    <span className="flat-row-title">{t('step3LidarrTitle')}</span>
-                    <p className="flat-row-desc">{t('step3LidarrDesc')}</p>
+                    <span className="flat-row-title">{t('step4LidarrTitle')}</span>
+                    <p className="flat-row-desc">{t('step4LidarrDesc')}</p>
                   </div>
                 </div>
                 <input
@@ -895,14 +1081,14 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           </div>
         )}
 
-        {/* PASO 4: MOVILIDAD */}
-        {currentStep === 4 && (
+        {/* PASO 5: MOVILIDAD */}
+        {currentStep === 5 && (
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
-              {t('step4Title')}
+              {t('step5Title')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '20px', lineHeight: 1.5 }}>
-              {t('step4Desc')}
+              {t('step5Desc')}
             </p>
 
             {status?.tailscaleDetected ? (
@@ -912,13 +1098,13 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                   <span>{t('tailscaleActive')} ({status.tailscaleIp})</span>
                 </span>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  {t('step4TailscaleReady')}
+                  {t('step5TailscaleReady')}
                 </p>
               </div>
             ) : (
               <div style={{ padding: '14px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                 <p style={{ fontSize: '0.84rem', color: 'var(--text-primary)', fontWeight: '500' }}>
-                  {t('step4LocalReadyTitle')}
+                  {t('step5LocalReadyTitle')}
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
@@ -929,7 +1115,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                   </p>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                  {t('step4TailscaleHint')}
+                  {t('step5TailscaleHint')}
                 </p>
               </div>
             )}
@@ -940,7 +1126,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 onClick={() => setRemoteMode(remoteMode === 'proxy' ? 'local' : 'proxy')}
               >
                 <span style={{ textDecoration: 'underline' }}>
-                  {remoteMode === 'proxy' ? t('step4DomainToggleHide') : t('step4DomainToggleShow')}
+                  {remoteMode === 'proxy' ? t('step5DomainToggleHide') : t('step5DomainToggleShow')}
                 </span>
               </div>
 
@@ -961,37 +1147,37 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           </div>
         )}
 
-        {/* PASO 5: CONFIRMAR */}
-        {currentStep === 5 && (
+        {/* PASO 6: CONFIRMAR */}
+        {currentStep === 6 && (
           <div>
             <h2 style={{ fontSize: '1.05rem', fontWeight: '600', marginBottom: '6px' }}>
-              {t('step5Title')}
+              {t('step6Title')}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.84rem', marginBottom: '20px' }}>
-              {t('step5Desc')}
+              {t('step6Desc')}
             </p>
 
             <div className="flat-list" style={{ marginBottom: '24px' }}>
               <div className="flat-row" style={{ padding: '8px 0' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummaryMusic')}</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step6SummaryMusic')}</span>
                 <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>{musicRoot}</span>
               </div>
               <div className="flat-row" style={{ padding: '8px 0' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummaryPort')}</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step6SummaryPort')}</span>
                 <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>{hostifyPort}</span>
               </div>
               <div className="flat-row" style={{ padding: '8px 0' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummaryUser')}</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step6SummaryUser')}</span>
                 <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>{navidromeAdminUser}</span>
               </div>
               <div className="flat-row" style={{ padding: '8px 0' }}>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step5SummarySources')}</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step6SummarySources')}</span>
                 <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>
                   {[
                     modules.explo && 'Curador Explo',
                     modules.slskd && 'Soulseek',
                     modules.lidarr && 'Lidarr Suite',
-                  ].filter(Boolean).join(' • ') || t('step5OnlyManual')}
+                  ].filter(Boolean).join(' • ') || t('step6OnlyManual')}
                 </span>
               </div>
             </div>
@@ -1024,7 +1210,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
           <div></div>
         )}
 
-        {currentStep < 5 ? (
+        {currentStep < 6 ? (
           <button
             type="button"
             id="btn-wizard-next"
@@ -1057,6 +1243,110 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
         onSelect={handleSelectPath}
         onClose={() => setPickerConfig(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Modal de Despliegue con Logs en Vivo */}
+      {deployModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '640px', width: '92%', background: 'var(--bg-surface)' }}>
+            <div className="modal-header" style={{ paddingBottom: '12px', borderBottom: '1px solid var(--border-subtle)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {isDeploying ? (
+                  <Loader2 className="spin" size={24} style={{ color: 'var(--accent-brass)' }} />
+                ) : deployError ? (
+                  <AlertCircle size={24} style={{ color: '#ef4444' }} />
+                ) : (
+                  <CheckCircle2 size={24} style={{ color: '#4ade80' }} />
+                )}
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: '600', margin: 0, color: 'var(--text-primary)' }}>
+                    {isDeploying
+                      ? t('deployModalTitle')
+                      : deployError
+                        ? t('deployErrorTitle')
+                        : t('deploySuccessTitle')}
+                  </h3>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', margin: 0 }}>
+                    {isDeploying
+                      ? t('deployModalSubtitle')
+                      : deployError
+                        ? t('deployErrorSubtitle')
+                        : t('deploySuccessSubtitle')}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              ref={logBoxRef}
+              className="code-box"
+              style={{
+                maxHeight: '340px',
+                minHeight: '220px',
+                overflowY: 'auto',
+                fontSize: '0.78rem',
+                lineHeight: 1.5,
+                background: '#0d1117',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '14px',
+                margin: '16px 0',
+                color: '#e6edf3',
+                fontFamily: 'var(--font-mono)'
+              }}
+            >
+              {deployLogs.length > 0 ? (
+                deployLogs.map((line, idx) => (
+                  <div key={idx} style={{ wordBreak: 'break-all', marginBottom: '3px' }}>
+                    {line}
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: 'var(--text-muted)' }}>{t('preparing')}</div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
+              {isDeploying ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                  <Loader2 className="spin" size={14} />
+                  <span>{t('deployStateInProgress')}</span>
+                </div>
+              ) : deployError ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={onComplete}
+                    style={{ height: '36px', padding: '0 16px' }}
+                  >
+                    <span>{t('continueAnyway')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleRetryDeploy}
+                    style={{ height: '36px', padding: '0 16px' }}
+                  >
+                    <RotateCcw size={13} />
+                    <span>{t('retry')}</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  id="btn-deploy-finish"
+                  className="btn btn-primary"
+                  onClick={onComplete}
+                  style={{ height: '38px', padding: '0 20px', fontWeight: '600' }}
+                >
+                  <span>{t('goToDashboard')}</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

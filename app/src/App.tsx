@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Navbar } from './components/Navbar.js';
 import { SetupWizard } from './components/SetupWizard.js';
 import { Dashboard } from './components/Dashboard.js';
-import { LicenseModal } from './components/LicenseModal.js';
 import { AppStatus } from './types.js';
 import { useI18n } from './i18n.js';
 
@@ -11,7 +10,6 @@ export const App: React.FC = () => {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'wizard'>('dashboard');
-  const [licenseModalOpen, setLicenseModalOpen] = useState(false);
   const isFirstLoad = useRef(true);
 
   const fetchStatus = async () => {
@@ -78,7 +76,6 @@ export const App: React.FC = () => {
         status={status} 
         onOpenSettings={() => (view === 'wizard' ? handleCancelWizard() : handleOpenWizard())}
         onResetWizard={handleOpenWizard}
-        onOpenLicense={() => setLicenseModalOpen(true)}
         activeView={view}
       />
 
@@ -93,13 +90,6 @@ export const App: React.FC = () => {
           <Dashboard status={status} onRefreshStatus={fetchStatus} />
         )}
       </main>
-
-      <LicenseModal
-        license={status?.license}
-        isOpen={licenseModalOpen}
-        onClose={() => setLicenseModalOpen(false)}
-        onRefresh={fetchStatus}
-      />
 
       <footer style={{ borderTop: '1px solid var(--border-subtle)', padding: '22px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
         <p>{t('footerText')}</p>
