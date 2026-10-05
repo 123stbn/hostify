@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { DeploymentState } from '../types/index.js';
-import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv } from '../utils/env.js';
+import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv, writeEnv } from '../utils/env.js';
 import { dockerClient } from './docker.service.js';
 import { ensureProwlarrLidarrSetup } from './provisioner.service.js';
 import { ensureNavidromeAdmin, triggerNavidromeScan, NavidromeCredentials } from './subsonic.service.js';
@@ -36,6 +36,45 @@ export function joinHostifyNetwork(): void {
 }
 
 /**
+ * Compose runs inside this container but bind-mount paths are resolved by the host Docker daemon.
+ * If a path (e.g. /music) is a mount destination of this container, return its host source
+ * (e.g. /volume1/music). Returns the input unchanged when no mapping is found.
+ */
+export function toHostPath(p: string): string {
+  if (!p || !fs.existsSync('/.dockerenv') || !dockerClient.isAvailable()) return p;
+  try {
+    const self = process.env.HOSTNAME || 'hostify-appliance';
+    const out = execFileSync('docker', ['inspect', '--format', '{{json .Mounts}}', self], { encoding: 'utf8', timeout: 5000 });
+    const mounts: { Source: string; Destination: string }[] = JSON.parse(out);
+    const match = mounts
+      .filter((m) => p === m.Destination || p.startsWith(m.Destination.replace(/\/$/, '') + '/'))
+      .sort((a, b) => b.Destination.length - a.Destination.length)[0];
+    if (!match) return p;
+    return path.posix.join(match.Source, p.slice(match.Destination.length));
+  } catch {
+    return p;
+  }
+}
+
+/** Rewrite MUSIC_ROOT / DOCKER_DATA in .env to host paths so satellite mounts resolve on the host. */
+function normalizeHostPaths(): void {
+  try {
+    const env = parseEnv(ENV_FILE_PATH);
+    let changed = false;
+    for (const key of ['MUSIC_ROOT', 'DOCKER_DATA']) {
+      const hostPath = toHostPath(env[key]);
+      if (hostPath !== env[key]) {
+        env[key] = hostPath;
+        changed = true;
+      }
+    }
+    if (changed) writeEnv(ENV_FILE_PATH, env);
+  } catch {
+    // Best effort: keep existing .env on any failure
+  }
+}
+
+/**
  * Función global de despliegue con streaming de logs y reintentos automáticos
  */
 export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = []): boolean {
@@ -47,6 +86,8 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   if (deploymentState.isDeploying) {
     return false;
   }
+
+  normalizeHostPaths();
 
   const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
   // Standalone/Portainer deployments (no Git checkout) always use the compose template bundled
