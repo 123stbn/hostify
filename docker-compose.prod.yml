@@ -37,10 +37,12 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - SERVER_HOST_NAME=${HOST_HOSTNAME:-hostify}
-      - SERVER_DOMAIN_NAME=local
-      - SERVER_ENABLE_DBUS=no
-      - SERVER_USE_IPV4=yes
-      - SERVER_USE_IPV6=no
-      - PUBLISH_PUBLISH_WORKSTATION=yes
+      SERVER_HOST_NAME: ${HOST_HOSTNAME:-hostify}
+      SERVER_DOMAIN_NAME: local
+      SERVER_USE_IPV4: "yes"
+      SERVER_USE_IPV6: "no"
+      SERVER_ENABLE_DBUS: "no"
+      SERVER_ALLOW_INTERFACES: ${AVAHI_IFACE:-eth0}
+      PUBLISH_PUBLISH_WORKSTATION: "no"
+
 

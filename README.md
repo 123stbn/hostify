@@ -121,12 +121,13 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - SERVER_HOST_NAME=hostify
-      - SERVER_DOMAIN_NAME=local
-      - SERVER_ENABLE_DBUS=no
-      - SERVER_USE_IPV4=yes
-      - SERVER_USE_IPV6=no
-      - PUBLISH_PUBLISH_WORKSTATION=yes
+      SERVER_HOST_NAME: hostify
+      SERVER_DOMAIN_NAME: local
+      SERVER_USE_IPV4: "yes"
+      SERVER_USE_IPV6: "no"
+      SERVER_ENABLE_DBUS: "no"
+      SERVER_ALLOW_INTERFACES: eth0
+      PUBLISH_PUBLISH_WORKSTATION: "no"
 ```
 
 > **Note on Storage Paths:** Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths. Once deployed in Portainer, open **`http://<NAS-IP>:3500`** or **`http://hostify.local:3500`** to complete the browser onboarding wizard. Hostify will automatically provision and manage all satellite streaming and downloader services.
