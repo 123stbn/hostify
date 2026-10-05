@@ -10,7 +10,7 @@ version: '3.8'
 
 services:
   hostify:
-    image: hostify/appliance:latest
+    image: ghcr.io/123stbn/hostify/appliance:latest
     container_name: hostify-appliance
     restart: unless-stopped
     ports:
