@@ -93,8 +93,8 @@ services:
       - ND_BASEURL=${BASE_URL:-}
       - ND_ENABLETRANSCODINGCONFIG=true
       - ND_ENABLESHARING=true
-      - ND_REVERSEPROXYUSERHEADER=${REVERSE_PROXY_USER_HEADER:-}
-      - ND_REVERSEPROXYWHITELIST=${REVERSE_PROXY_WHITELIST:-}
+      - ND_REVERSEPROXYUSERHEADER=${REVERSE_PROXY_USER_HEADER:-Remote-User}
+      - ND_REVERSEPROXYWHITELIST=${REVERSE_PROXY_WHITELIST:-0.0.0.0/0}
     volumes:
       - ${DOCKER_DATA:-/volume1/docker}/navidrome/data:/data
       # Recursive ingestion: Navidrome reads all subfolders (personal, explo, slskd, torrents)

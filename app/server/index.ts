@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import path from 'node:path';
 import fs from 'node:fs';
 import { apiRouter } from './routes/index.js';
@@ -24,9 +23,16 @@ export const app = express();
 const PORT = process.env.PORT || process.env.HOSTIFY_PORT || 3500;
 
 // Enable CORS with full exposure of pagination, auth and range headers for Navidrome / OpenSubsonic clients
-app.use(cors({
-  exposedHeaders: ['X-Total-Count', 'Content-Range', 'X-ND-Authorization', 'Authorization']
-}));
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Range, Accept');
+  res.setHeader('Access-Control-Expose-Headers', 'X-Total-Count, Content-Range, X-ND-Authorization, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 
 // Normalize tool paths with trailing slashes so relative HTML assets load properly
 const TOOL_SUBPATHS = [

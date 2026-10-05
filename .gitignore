@@ -2,16 +2,13 @@
 # HOSTIFY - GITIGNORE
 # ==============================================================================
 
-# Entorno y credenciales locales (NUNCA subir a Git)
+# Local environment and runtime state (NEVER commit to Git)
 .env
 .env*.local
 .env.production
 .hostify_configured*
-.hostify_license*
 .hostify_state*
 docker-compose.override.yml
-scripts/keys/*private*
-*.pem
 
 # Dependencias Node.js / pnpm
 node_modules/

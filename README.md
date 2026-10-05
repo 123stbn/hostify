@@ -132,3 +132,9 @@ Hostify provides ready-to-copy configurations under the **Remote Access** tab:
   }
   ```
 - **Nginx:** Preconfigured with `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto`, and WebSocket `Upgrade` headers.
+
+---
+
+## 📄 License
+
+Hostify is free and open-source software licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](./LICENSE) file for details.

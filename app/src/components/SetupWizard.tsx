@@ -13,75 +13,73 @@ const DRAFT_STORAGE_KEY = 'hostify_wizard_draft_v2';
 
 function loadWizardDraft() {
   try {
-    localStorage.removeItem('hostify_wizard_draft_v1'); // Remove legacy 5-step draft
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
       return JSON.parse(raw);
     }
   } catch (err) {
-    console.warn('No se pudo cargar el borrador de localStorage', err);
+    console.warn('Could not load wizard draft from localStorage', err);
   }
   return null;
 }
 
-const TIMEZONE_GROUPS = [
-  {
-    group: 'América del Sur',
-    zones: [
-      { id: 'America/Lima', label: 'Lima (GMT-5) - Perú' },
-      { id: 'America/Bogota', label: 'Bogotá (GMT-5) - Colombia' },
-      { id: 'America/Santiago', label: 'Santiago (GMT-3/4) - Chile' },
-      { id: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (GMT-3) - Argentina' },
-      { id: 'America/Caracas', label: 'Caracas (GMT-4) - Venezuela' },
-      { id: 'America/Guayaquil', label: 'Guayaquil (GMT-5) - Ecuador' },
-      { id: 'America/Montevideo', label: 'Montevideo (GMT-3) - Uruguay' },
-      { id: 'America/La_Paz', label: 'La Paz (GMT-4) - Bolivia' },
-      { id: 'America/Asuncion', label: 'Asunción (GMT-3/4) - Paraguay' },
-      { id: 'America/Sao_Paulo', label: 'São Paulo (GMT-3) - Brasil' },
-    ],
-  },
-  {
-    group: 'América Central y México',
-    zones: [
-      { id: 'America/Mexico_City', label: 'Ciudad de México (GMT-6) - México' },
-      { id: 'America/Monterrey', label: 'Monterrey (GMT-6) - México' },
-      { id: 'America/Tijuana', label: 'Tijuana (GMT-8) - México' },
-      { id: 'America/Panama', label: 'Panamá (GMT-5) - Panamá' },
-      { id: 'America/Costa_Rica', label: 'San José (GMT-6) - Costa Rica' },
-      { id: 'America/Guatemala', label: 'Guatemala (GMT-6) - Guatemala' },
-      { id: 'America/Santo_Domingo', label: 'Santo Domingo (GMT-4) - Rep. Dominicana' },
-    ],
-  },
-  {
-    group: 'Norteamérica',
-    zones: [
-      { id: 'America/New_York', label: 'New York (Eastern) - EE.UU.' },
-      { id: 'America/Chicago', label: 'Chicago (Central) - EE.UU.' },
-      { id: 'America/Denver', label: 'Denver (Mountain) - EE.UU.' },
-      { id: 'America/Los_Angeles', label: 'Los Angeles (Pacific) - EE.UU.' },
-      { id: 'America/Toronto', label: 'Toronto - Canadá' },
-    ],
-  },
-  {
-    group: 'Europa',
-    zones: [
-      { id: 'Europe/Madrid', label: 'Madrid (CET/CEST) - España' },
-      { id: 'Europe/London', label: 'Londres (GMT/BST) - Reino Unido' },
-      { id: 'Europe/Paris', label: 'París (CET/CEST) - Francia' },
-      { id: 'Europe/Berlin', label: 'Berlín (CET/CEST) - Alemania' },
-      { id: 'Europe/Rome', label: 'Roma (CET/CEST) - Italia' },
-      { id: 'Europe/Lisbon', label: 'Lisboa (WET/WEST) - Portugal' },
-    ],
-  },
-  {
-    group: 'Otros Estándares',
-    zones: [
-      { id: 'UTC', label: 'UTC (Tiempo Universal Coordinado)' },
-      { id: 'Asia/Tokyo', label: 'Tokio (JST) - Japón' },
-      { id: 'Australia/Sydney', label: 'Sídney (AEST) - Australia' },
-    ],
-  },
-];
+interface TimezoneGroup {
+  group: string;
+  zones: Array<{ id: string; label: string }>;
+}
+
+// Generate all standard IANA timezones dynamically using native Intl API
+function getTimezoneGroups(): TimezoneGroup[] {
+  const supported = typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : [
+        'America/Lima', 'America/Bogota', 'America/Santiago', 'America/Argentina/Buenos_Aires',
+        'America/Caracas', 'America/Guayaquil', 'America/Montevideo', 'America/La_Paz',
+        'America/Mexico_City', 'America/New_York', 'America/Chicago', 'America/Los_Angeles',
+        'Europe/Madrid', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'UTC', 'Asia/Tokyo'
+      ];
+
+  const now = new Date();
+  const groupsMap = new Map<string, Array<{ id: string; label: string }>>();
+
+  for (const id of supported) {
+    const parts = id.split('/');
+    const region = parts.length > 1 ? parts[0] : 'Global';
+    const city = (parts[parts.length - 1] || id).replace(/_/g, ' ');
+
+    let offset = '';
+    try {
+      offset = new Intl.DateTimeFormat('en-US', { timeZone: id, timeZoneName: 'shortOffset' })
+        .formatToParts(now)
+        .find(p => p.type === 'timeZoneName')?.value || '';
+    } catch {}
+
+    const label = offset ? `${city} (${offset}) - ${id}` : `${city} - ${id}`;
+
+    if (!groupsMap.has(region)) {
+      groupsMap.set(region, []);
+    }
+    groupsMap.get(region)!.push({ id, label });
+  }
+
+  const priorityRegions = ['America', 'Europe', 'Asia', 'Africa', 'Australia', 'Pacific', 'Atlantic', 'Indian', 'Global'];
+  const sortedGroups: TimezoneGroup[] = [];
+
+  for (const reg of priorityRegions) {
+    if (groupsMap.has(reg)) {
+      sortedGroups.push({ group: reg, zones: groupsMap.get(reg)! });
+      groupsMap.delete(reg);
+    }
+  }
+
+  for (const [group, zones] of groupsMap.entries()) {
+    sortedGroups.push({ group, zones });
+  }
+
+  return sortedGroups;
+}
+
+const TIMEZONE_GROUPS = getTimezoneGroups();
 
 interface SetupWizardProps {
   status: AppStatus | null;
@@ -640,107 +638,176 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               {t('step1Desc')}
             </p>
 
-            {/* Tarjetas de Bienvenida Open Source y Diagnóstico del Sistema */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-              {/* Card 1: 100% Open Source */}
+            {/* Unified Welcome & Overview Presentation */}
+            <div
+              style={{
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-surface)',
+                overflow: 'hidden',
+                marginBottom: '20px',
+              }}
+            >
+              {/* Hero Banner Header */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid rgba(74, 222, 128, 0.3)',
-                  background: 'rgba(74, 222, 128, 0.04)',
+                  padding: '24px 24px 20px',
+                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                  borderBottom: '1px solid var(--border-subtle)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: 'rgba(74, 222, 128, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#4ade80'
-                  }}>
-                    <ShieldCheck size={18} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                    }}
+                  >
+                    <Disc3 size={22} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600, color: '#4ade80' }}>
-                      {t('step1OpenSourceBadge')}
+                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {t('step1HeroTitle')}
                     </h3>
                   </div>
                 </div>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {t('step1OpenSourceDesc')}
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '680px' }}>
+                  {t('step1HeroSubtitle')}
                 </p>
-                <div style={{
-                  marginTop: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '0.76rem',
-                  color: 'var(--text-muted)'
-                }}>
-                  <CheckCircle2 size={13} color="#4ade80" />
-                  <span>Sin telemetría • Sin DRM • Modo 100% Local</span>
+              </div>
+
+              {/* 3 Core Highlights (Stacked / Clean layout) */}
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div
+                    style={{
+                      marginTop: '2px',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'rgba(34, 197, 94, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#4ade80',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Music size={15} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                      {t('step1Feature1Title')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {t('step1Feature1Desc')}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div
+                    style={{
+                      marginTop: '2px',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#818cf8',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Layers size={15} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                      {t('step1Feature2Title')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {t('step1Feature2Desc')}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                  <div
+                    style={{
+                      marginTop: '2px',
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      background: 'rgba(56, 189, 248, 0.12)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#38bdf8',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <ShieldCheck size={15} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                      {t('step1Feature3Title')}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                      {t('step1Feature3Desc')}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Card 2: Diagnóstico del Entorno */}
+              {/* Status and Diagnostics Footer Strip */}
               <div
                 style={{
-                  padding: '18px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--border-subtle)',
-                  background: 'var(--bg-surface)',
+                  padding: '12px 24px',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  borderTop: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px',
+                  fontSize: '0.78rem',
+                  color: 'var(--text-muted)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                  <div style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '8px',
-                    background: 'rgba(99, 102, 241, 0.15)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#818cf8'
-                  }}>
-                    <Server size={18} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 600 }}>
-                      {t('step1DiagnosticTitle')}
-                    </h3>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: status?.dockerAvailable ? '#4ade80' : '#ef4444',
+                    }}
+                  />
+                  <span>
+                    {status?.dockerAvailable ? t('step1DockerReady') : t('step1DockerOffline')}
+                  </span>
+                  <span>•</span>
+                  <span>PUID {puid} / PGID {pgid}</span>
                 </div>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  {t('step1DiagnosticDesc')}
-                </p>
-                <div style={{
-                  marginTop: '14px',
-                  padding: '8px 10px',
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  borderRadius: 'var(--radius-xs)',
-                  fontSize: '0.76rem',
-                  color: 'var(--text-muted)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}>
-                  <div>
-                    Motor Docker: <strong style={{ color: status?.dockerAvailable ? '#4ade80' : '#ef4444' }}>
-                      {status?.dockerAvailable ? 'En línea' : 'Detenido'}
-                    </strong>
-                  </div>
-                  <div>
-                    Permisos de Ingesta: <strong style={{ color: 'var(--text-secondary)' }}>PUID {puid} / PGID {pgid}</strong>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
+                  <CheckCircle2 size={13} color="#4ade80" />
+                  <span>Sin telemetría • Sin DRM • Modo 100% Local</span>
                 </div>
               </div>
             </div>
           </div>
         )}
+
+
 
         {/* PASO 2: UBICACIÓN */}
         {currentStep === 2 && (
