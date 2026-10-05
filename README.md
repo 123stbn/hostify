@@ -14,6 +14,18 @@ It completely eliminates the need to edit terminal YAML files, debug Linux permi
 
 ---
 
+## 🎯 Project Purpose
+
+Commercial music streaming services lock your music behind monthly subscriptions, remove songs due to licensing disputes, alter audio masters without notice, collect listening telemetry, and restrict offline listening with aggressive DRM.
+
+**Hostify** was created to restore **true digital ownership** to music lovers and audiophiles:
+- **Your Music, Your Rules:** Turn any old PC, Mac, VPS, or NAS into a private, self-hosted streaming server running on your home network or private VPN.
+- **Bit-Perfect Audio Fidelity:** Native bit-perfect playback for lossless FLAC, ALAC, Opus, and high-bitrate MP3s with zero unwanted compression.
+- **Modern User Experience:** You don't have to sacrifice modern UX. Enjoy Spotify-like desktop interfaces (Feishin), mobile apps with parametric equalizers (Symfonium on Android, SubSonify on iOS), and Apple CarPlay support.
+- **Zero Configuration Friction:** No need to write complex YAMLs, configure reverse proxy headers manually, or battle Unix permissions. The web Setup Wizard automates provisioning end-to-end.
+
+---
+
 ## 🌟 Key Features
 
 - 🚀 **Onboarding in < 5 minutes:** Step-by-step browser wizard (*Setup Wizard*) that autodetects music paths, provisions directory trees, and validates credentials.
@@ -48,33 +60,82 @@ To preserve metadata integrity and prevent half-downloaded tracks from breaking 
 
 ---
 
-## 🚀 Quick Start & Deployment (Cross-Platform)
+## 🚀 Quick Start & Installation Alternatives
 
-The automated installer detects your host operating system, checks for Docker availability, and if missing or stopped, **installs and configures it to start automatically on system boot**:
-- **macOS:** If Docker is not found, installs and starts **Colima** (lightweight open-source container runtime) and registers it with `brew services` for auto-start upon login.
-- **Linux / NAS:** Provisions official **Docker Engine** via `get.docker.com` and enables `systemctl enable --now docker`.
-- **Windows:** Detects Docker Desktop or installs it automatically via `winget` with startup integration.
+Hostify can be deployed in whichever way best fits your infrastructure:
 
-### 🍎 macOS / 🐧 Linux / 🖧 NAS / 💻 WSL:
+### Method 1: Automated Turnkey Installer (Recommended)
+
+The automated script checks for Docker, installs and starts it if missing (e.g. Colima on macOS, Docker Engine on Linux, Docker Desktop on Windows), pulls the official image, and starts Hostify:
+
+#### 🍎 macOS / 🐧 Linux / 🖧 NAS / 💻 WSL:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/123stbn/hostify/main/install.sh | bash
 ```
 
-### 🪟 Windows (Run PowerShell as Administrator):
+#### 🪟 Windows (Run PowerShell as Administrator):
 ```powershell
 irm https://raw.githubusercontent.com/123stbn/hostify/main/install.ps1 | iex
 ```
 
-### Or Manually via Git & Docker Compose:
+---
+
+### Method 2: Portainer / Synology / QNAP / CasaOS (Pre-Built Image)
+
+If you manage your NAS or home server via **Portainer**, **Dockge**, **CasaOS**, or **Synology Container Manager**, deploy a single Stack using the official lightweight image:
+
+```yaml
+version: '3.8'
+
+services:
+  hostify:
+    image: ghcr.io/123stbn/hostify/appliance:latest
+    container_name: hostify-appliance
+    restart: unless-stopped
+    ports:
+      - "3500:3500"
+    environment:
+      - NODE_ENV=production
+      - HOSTIFY_PORT=3500
+      - DOCKER_SOCK=/var/run/docker.sock
+      - COMPOSE_PROJECT_DIR=/app/project
+      - PUID=1000
+      - PGID=10
+      - TZ=America/Lima
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persistent directory for Hostify state, .env, and generated configs
+      - /volume1/docker/hostify/project:/app/project
+      # Your music storage root directory
+      - /volume1/music:/music
+```
+
+---
+
+### Method 3: Standard Docker Compose (Git Clone)
+
+If you prefer to keep the full repository locally:
+
 ```bash
 git clone https://github.com/123stbn/hostify.git
 cd hostify
-./install.sh   # On macOS/Linux
-.\install.ps1  # On Windows PowerShell
+
+# Deploy using the automated script:
+./install.sh     # macOS / Linux
+.\install.ps1    # Windows PowerShell
+
+# Or directly with Docker Compose:
+docker compose up -d hostify
 ```
 
-Once installed, open your browser at:
-👉 **`http://hostify.local:3500`** (or `http://localhost:3500` / `http://<YOUR-SERVER-IP>:3500`) to launch the **Setup Wizard**.
+---
+
+### 🌐 Accessing the Setup Wizard
+
+Once started via any of the methods above, open your browser:
+👉 **`http://hostify.local:3500`** *(or `http://localhost:3500` / `http://<YOUR-SERVER-IP>:3500`)*
+
+The wizard will guide you step-by-step through configuring your music directories, admin credentials, downloader tools, and remote access.
 
 ---
 
