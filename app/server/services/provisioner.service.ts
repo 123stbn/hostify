@@ -265,6 +265,9 @@ window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
 })();
 `;
       fs.writeFileSync(feishinTemplatePath, templateContent, 'utf-8');
+      if (!fs.existsSync(projectTemplateFile)) {
+        try { fs.writeFileSync(projectTemplateFile, templateContent, 'utf-8'); } catch {}
+      }
     }
   } catch (err: any) {
     console.error('Error auto-configurando qbittorrent/prowlarr/lidarr/feishin:', err.message);

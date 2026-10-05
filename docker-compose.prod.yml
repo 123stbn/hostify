@@ -29,4 +29,18 @@ services:
       - ${DOCKER_DATA:-/volume1/docker/hostify}/project:/app/project
       - ${MUSIC_ROOT:-/volume1/music}:/music
       - ${DOCKER_DATA:-/volume1/docker/hostify}:${DOCKER_DATA:-/volume1/docker/hostify}
-    network_mode: bridge
+
+  # LAN mDNS discovery broadcaster: enables http://hostify.local:3500 without manual IP
+  avahi:
+    image: flungo/avahi:latest
+    container_name: hostify-avahi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - SERVER_HOST_NAME=${HOST_HOSTNAME:-hostify}
+      - SERVER_DOMAIN_NAME=local
+      - SERVER_ENABLE_DBUS=no
+      - SERVER_USE_IPV4=yes
+      - SERVER_USE_IPV6=no
+      - PUBLISH_PUBLISH_WORKSTATION=yes
+

@@ -122,7 +122,7 @@ services:
       - ANALYTICS_DISABLED=true
       - FS_GENERAL_THEME=defaultDark
     volumes:
-      - ${DOCKER_DATA:-/volume1/docker}/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
+      - ./docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
     networks:
       - hostify-net
 

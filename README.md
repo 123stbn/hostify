@@ -102,12 +102,29 @@ services:
       - PUID=1000
       - PGID=10
       - TZ=America/Lima
+      - HOST_HOSTNAME=hostify
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      # Persistent directory for Hostify state, .env, and generated configs
+      # Persistent workspace where Hostify stores state, .env, and generated configs
       - /volume1/docker/hostify/project:/app/project
       # Your music storage root directory
       - /volume1/music:/music
+      # Data directory for satellite downloaders & databases
+      - /volume1/docker/hostify:/volume1/docker/hostify
+
+  # mDNS (Bonjour) LAN broadcaster: allows access via http://hostify.local:3500 on all local devices
+  avahi:
+    image: flungo/avahi:latest
+    container_name: hostify-avahi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - SERVER_HOST_NAME=hostify
+      - SERVER_DOMAIN_NAME=local
+      - SERVER_ENABLE_DBUS=no
+      - SERVER_USE_IPV4=yes
+      - SERVER_USE_IPV6=no
+      - PUBLISH_PUBLISH_WORKSTATION=yes
 ```
 
 ---
