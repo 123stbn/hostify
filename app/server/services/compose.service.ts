@@ -135,6 +135,32 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
     }
   }
 
+  // Pre-configure Feishin settings template in PROJECT_DIR before compose starts
+  try {
+    const feishinProjectDir = path.join(PROJECT_DIR, 'docker', 'feishin');
+    const projectTemplateFile = path.join(feishinProjectDir, 'settings.js.template');
+    const bundledTemplate = path.join(process.cwd(), 'templates', 'feishin', 'settings.js.template');
+
+    // If Docker created it as a directory by mistake, remove it
+    if (fs.existsSync(projectTemplateFile) && fs.statSync(projectTemplateFile).isDirectory()) {
+      fs.rmSync(projectTemplateFile, { recursive: true, force: true });
+    }
+
+    if (!fs.existsSync(feishinProjectDir)) {
+      fs.mkdirSync(feishinProjectDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(projectTemplateFile)) {
+      if (fs.existsSync(bundledTemplate)) {
+        fs.copyFileSync(bundledTemplate, projectTemplateFile);
+      } else {
+        fs.writeFileSync(projectTemplateFile, '// Hostify Feishin template placeholder\n', 'utf-8');
+      }
+    }
+  } catch (err: any) {
+    console.warn('Error asegurando template de Feishin:', err.message);
+  }
+
   deploymentState = {
     isDeploying: true,
     logs: [
