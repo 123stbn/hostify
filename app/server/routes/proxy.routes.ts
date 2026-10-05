@@ -61,9 +61,125 @@ export const feishinProxyMiddleware = createProxyMiddleware({
       if (!/\/settings\.js(\?|$)/.test(reqPath)) return buffer;
       const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
       const origin = `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
-      return buffer
+      const env = parseEnv(ENV_FILE_PATH);
+      const adminUser = env.NAVIDROME_ADMIN_USER?.trim() || 'admin';
+      const adminPass = env.NAVIDROME_ADMIN_PASSWORD?.trim() || '';
+
+      let content = buffer
         .toString('utf8')
         .replace(/(window\.SERVER_URL\s*=\s*)"[^"]*"/, `$1${JSON.stringify(origin)}`);
+
+      // If credentials exist, append the zero-config auto-authentication engine
+      if (adminPass) {
+        const autoAuthCode = `
+;/* [Hostify] Zero-Config Auto-Authentication Engine */
+(function autoAuthHostify() {
+  var adminUser = ${JSON.stringify(adminUser)};
+  var adminPass = ${JSON.stringify(adminPass)};
+  var serverUrl = window.SERVER_URL || ${JSON.stringify(origin)};
+  var serverName = window.SERVER_NAME || "Hostify";
+
+  if (!adminPass || !serverUrl) return;
+
+  function tryAutoAuth() {
+    try {
+      var stored = localStorage.getItem("store_authentication");
+      if (stored) {
+        var parsed = JSON.parse(stored);
+        var curr = parsed && parsed.state && parsed.state.currentServer;
+        if (curr && curr.url === serverUrl && curr.username === adminUser && curr.credential) {
+          return;
+        }
+      }
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", serverUrl + "/auth/login", false);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.send(JSON.stringify({ username: adminUser, password: adminPass }));
+
+      if (xhr.status === 200) {
+        var res = JSON.parse(xhr.responseText);
+        var serverId = "hostify-navidrome";
+        var sItem = {
+          id: serverId,
+          name: serverName,
+          type: "navidrome",
+          url: serverUrl,
+          remoteUrl: "",
+          username: res.username || adminUser,
+          userId: res.id || null,
+          isAdmin: Boolean(res.isAdmin),
+          credential: "u=" + (res.username || adminUser) + "&s=" + res.subsonicSalt + "&t=" + res.subsonicToken,
+          ndCredential: res.token,
+          savePassword: true
+        };
+
+        var deviceId = "hostify-" + Math.random().toString(36).substring(2, 9);
+        if (stored) {
+          try {
+            var old = JSON.parse(stored);
+            if (old && old.state && old.state.deviceId) deviceId = old.state.deviceId;
+          } catch (e) {}
+        }
+
+        var newStore = {
+          state: {
+            currentServer: sItem,
+            deviceId: deviceId,
+            serverList: {}
+          },
+          version: 2
+        };
+        newStore.state.serverList[serverId] = sItem;
+        localStorage.setItem("store_authentication", JSON.stringify(newStore));
+      }
+    } catch (err) {}
+  }
+
+  tryAutoAuth();
+
+  window.addEventListener("DOMContentLoaded", function() {
+    var checkCount = 0;
+    var timer = setInterval(function() {
+      checkCount++;
+      if (checkCount > 40) {
+        clearInterval(timer);
+        return;
+      }
+
+      var hash = window.location.hash || "";
+      if (hash.indexOf("action-required") !== -1 || hash.indexOf("login") !== -1) {
+        var passInput = document.querySelector('input[type="password"]');
+        var userInput = document.querySelector('input[data-autofocus]') || document.querySelector('input[type="text"]:not([readonly])');
+
+        if (passInput && userInput) {
+          try {
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+            setter.call(userInput, adminUser);
+            userInput.dispatchEvent(new Event("input", { bubbles: true }));
+            setter.call(passInput, adminPass);
+            passInput.dispatchEvent(new Event("input", { bubbles: true }));
+
+            setTimeout(function() {
+              var btn = document.querySelector('button[type="submit"]');
+              if (btn && !btn.disabled) {
+                btn.click();
+                clearInterval(timer);
+              }
+            }, 150);
+          } catch (e) {}
+        }
+      } else if (hash === "" || hash === "#/" || hash.indexOf("home") !== -1) {
+        clearInterval(timer);
+      }
+    }, 250);
+  });
+})();
+`;
+        content += autoAuthCode;
+      }
+
+      return content;
     }),
     error: (err: any, _req: any, res: any) => {
       console.error('[Hostify Gateway] Feishin upstream error:', err?.message || err);
