@@ -49,6 +49,33 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
+          {/* Buy me a pizza link */}
+          <a
+            href="https://www.buymeacoffee.com/123stbn"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Buy me a pizza"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-xs)',
+              background: '#FFDD00',
+              color: '#000000',
+              fontWeight: 700,
+              fontSize: '0.74rem',
+              textDecoration: 'none',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.25)',
+              transition: 'transform 0.15s ease, opacity 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-1px)')}
+            onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          >
+            <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>🍕</span>
+            <span>Buy me a pizza</span>
+          </a>
+
           {/* Minimalist Language Switcher */}
           <button
             id="btn-toggle-lang"

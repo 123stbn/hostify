@@ -1,0 +1,57 @@
+name: Bug report
+description: Create a report to help us improve Hostify
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Describe what happened...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior.
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment & Host OS
+      description: e.g. macOS Sequoia 15.2, Ubuntu 24.04 LTS, Synology DSM 7.2, Windows 11 WSL2
+      placeholder: macOS / Linux / Windows / NAS
+    validations:
+      required: true
+  - type: input
+    id: docker_version
+    attributes:
+      label: Docker / Runtime Version
+      description: Output of `docker --version` or Colima version
+      placeholder: Docker 27.x / Colima 0.8.x
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Container / Server Logs
+      description: Relevant logs from Hostify appliance or satellite containers.
+      render: shell

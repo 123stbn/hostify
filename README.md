@@ -1,5 +1,11 @@
 # 🎧 Hostify: Personal Music Cloud (Self-Hosted Spotify Alternative)
 
+<p align="center">
+  <a href="https://www.buymeacoffee.com/123stbn" target="_blank">
+    <img src="https://img.shields.io/badge/🍕_Buy_me_a_pizza-123stbn-FFDD00?style=for-the-badge&logoColor=000&labelColor=1f2937" alt="Buy Me A Pizza" />
+  </a>
+</p>
+
 **Hostify** is a turnkey software appliance designed to transform a technical Docker container stack into a private, high-fidelity music streaming cloud (FLAC/Opus/MP3). It delivers the polished, seamless user experience of Spotify while keeping you in 100% control of your library and data.
 
 It completely eliminates the need to edit terminal YAML files, debug Linux permissions, or struggle with complex reverse proxy network configurations through its intuitive web-based **Setup Wizard** and **Unified Management Dashboard**.
@@ -135,6 +141,15 @@ Hostify provides ready-to-copy configurations under the **Remote Access** tab:
 
 ---
 
+## 🍕 Support the Project
+
+If you love Hostify and want to support its active open-source development:
+
+[![Buy Me A Pizza](https://img.shields.io/badge/🍕_Buy_me_a_pizza-123stbn-FFDD00?style=for-the-badge&logoColor=000&labelColor=1f2937)](https://www.buymeacoffee.com/123stbn)
+
+---
+
 ## 📄 License
 
 Hostify is free and open-source software licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](./LICENSE) file for details.
+
