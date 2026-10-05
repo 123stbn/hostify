@@ -1,0 +1,55 @@
+0:56:19 PM] Network hostify-net Creating
+[10:56:19 PM] Network hostify-net Created
+[10:56:19 PM] Container hostify-multi-scrobbler Creating
+[10:56:19 PM] Container hostify-explo Creating
+[10:56:19 PM] Container hostify-lidarr Creating
+[10:56:19 PM] Container hostify-navidrome Creating
+[10:56:19 PM] Container hostify-prowlarr Creating
+[10:56:19 PM] Container hostify-qbittorrent Creating
+[10:56:19 PM] Container hostify-feishin Creating
+[10:56:19 PM] Container hostify-slskd Creating
+[10:56:21 PM] Container hostify-multi-scrobbler Created
+[10:56:21 PM] Container hostify-slskd Created
+[10:56:21 PM] Container hostify-feishin Created
+[10:56:21 PM] Container hostify-explo Created
+[10:56:21 PM] Container hostify-navidrome Created
+[10:56:21 PM] Container hostify-qbittorrent Created
+[10:56:21 PM] Container hostify-prowlarr Created
+[10:56:21 PM] Container hostify-lidarr Created
+[10:56:21 PM] Container hostify-slskd Starting
+[10:56:21 PM] Container hostify-navidrome Starting
+[10:56:21 PM] Container hostify-feishin Starting
+[10:56:21 PM] Container hostify-prowlarr Starting
+[10:56:21 PM] Container hostify-lidarr Starting
+[10:56:21 PM] Container hostify-explo Starting
+[10:56:21 PM] Container hostify-qbittorrent Starting
+[10:56:21 PM] Container hostify-multi-scrobbler Starting
+[10:56:24 PM] Container hostify-navidrome Started
+[10:56:24 PM] Container hostify-qbittorrent Started
+[10:56:25 PM] Container hostify-multi-scrobbler Started
+[10:56:26 PM] Container hostify-lidarr Started
+[10:56:27 PM] Container hostify-explo Started
+[10:56:27 PM] Container hostify-slskd Started
+[10:56:28 PM] Container hostify-prowlarr Started
+[10:56:29 PM] Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/app/project/docker/feishin/settings.js.template" to rootfs at "/etc/nginx/templates/settings.js.template": mount /app/project/docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template (via /proc/self/fd/6), flags: 0x5000: not a directory: unknown: Are you trying to mount a directory onto a file (or vice-versa)? Check if the specified host path exists and is the expected type
+[10:56:29 PM] ⚠️ Registro ocupado o límite de tasa detectado. Reintentando en 3 segundos (intento 2/3)...
+[10:56:32 PM] Container hostify-multi-scrobbler Running
+[10:56:32 PM] Container hostify-lidarr Running
+[10:56:32 PM] Container hostify-navidrome Running
+[10:56:32 PM] Container hostify-slskd Running
+[10:56:32 PM] Container hostify-prowlarr Running
+[10:56:32 PM] Container hostify-explo Running
+[10:56:32 PM] Container hostify-qbittorrent Running
+[10:56:32 PM] Container hostify-feishin Starting
+[10:56:35 PM] Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/app/project/docker/feishin/settings.js.template" to rootfs at "/etc/nginx/templates/settings.js.template": mount /app/project/docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template (via /proc/self/fd/6), flags: 0x5000: not a directory: unknown: Are you trying to mount a directory onto a file (or vice-versa)? Check if the specified host path exists and is the expected type
+[10:56:35 PM] ⚠️ Registro ocupado o límite de tasa detectado. Reintentando en 6 segundos (intento 3/3)...
+[10:56:41 PM] Container hostify-qbittorrent Running
+[10:56:41 PM] Container hostify-multi-scrobbler Running
+[10:56:41 PM] Container hostify-explo Running
+[10:56:41 PM] Container hostify-lidarr Running
+[10:56:41 PM] Container hostify-prowlarr Running
+[10:56:41 PM] Container hostify-slskd Running
+[10:56:41 PM] Container hostify-navidrome Running
+[10:56:41 PM] Container hostify-feishin Starting
+[10:56:43 PM] Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: error mounting "/app/project/docker/feishin/settings.js.template" to rootfs at "/etc/nginx/templates/settings.js.template": mount /app/project/docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template (via /proc/self/fd/6), flags: 0x5000: not a directory: unknown: Are you trying to mount a directory onto a file (or vice-versa)? Check if the specified host path exists and is the expected type
+[10:56:43 PM] ❌ Error en despliegue (código 1). Puedes pulsar "Reintentar Despliegue".

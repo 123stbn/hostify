@@ -20,6 +20,22 @@ export function getDeploymentState(): DeploymentState {
 }
 
 /**
+ * Attach this appliance container to the satellite network (hostify-net).
+ * Standalone/Portainer deployments start the appliance in its own stack network, so the
+ * reverse proxy gateway could not resolve navidrome, feishin, etc. by service name.
+ * Safe to call repeatedly: Docker reports an error if already connected, which is ignored.
+ */
+export function joinHostifyNetwork(): void {
+  if (!fs.existsSync('/.dockerenv') || !dockerClient.isAvailable()) return;
+  const self = process.env.HOSTNAME || 'hostify-appliance';
+  const proc = spawn('docker', ['network', 'connect', 'hostify-net', self]);
+  proc.on('error', () => {});
+  proc.on('close', (code) => {
+    if (code === 0) console.log('[Hostify Gateway] Appliance attached to hostify-net');
+  });
+}
+
+/**
  * Función global de despliegue con streaming de logs y reintentos automáticos
  */
 export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = []): boolean {
@@ -33,17 +49,16 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   }
 
   const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
-  if (!fs.existsSync(composePath)) {
-    // If not found in PROJECT_DIR (standalone or Portainer deployments without Git),
-    // copy the bundled internal template
-    const bundledTemplate = path.join(process.cwd(), 'templates', 'docker-compose.yml');
-    if (fs.existsSync(bundledTemplate)) {
-      try {
-        if (!fs.existsSync(PROJECT_DIR)) fs.mkdirSync(PROJECT_DIR, { recursive: true });
-        fs.copyFileSync(bundledTemplate, composePath);
-      } catch (err: any) {
-        console.warn('Could not copy internal docker-compose template:', err.message);
-      }
+  // Standalone/Portainer deployments (no Git checkout) always use the compose template bundled
+  // in the image, so image upgrades also refresh a stale docker-compose.yml left in PROJECT_DIR.
+  const isGitCheckout = fs.existsSync(path.join(PROJECT_DIR, '.git')) || fs.existsSync(path.join(PROJECT_DIR, 'app'));
+  const bundledTemplate = path.join(process.cwd(), 'templates', 'docker-compose.yml');
+  if ((!fs.existsSync(composePath) || !isGitCheckout) && fs.existsSync(bundledTemplate)) {
+    try {
+      if (!fs.existsSync(PROJECT_DIR)) fs.mkdirSync(PROJECT_DIR, { recursive: true });
+      fs.copyFileSync(bundledTemplate, composePath);
+    } catch (err: any) {
+      console.warn('Could not copy internal docker-compose template:', err.message);
     }
   }
 
@@ -135,32 +150,6 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
     }
   }
 
-  // Pre-configure Feishin settings template in PROJECT_DIR before compose starts
-  try {
-    const feishinProjectDir = path.join(PROJECT_DIR, 'docker', 'feishin');
-    const projectTemplateFile = path.join(feishinProjectDir, 'settings.js.template');
-    const bundledTemplate = path.join(process.cwd(), 'templates', 'feishin', 'settings.js.template');
-
-    // If Docker created it as a directory by mistake, remove it
-    if (fs.existsSync(projectTemplateFile) && fs.statSync(projectTemplateFile).isDirectory()) {
-      fs.rmSync(projectTemplateFile, { recursive: true, force: true });
-    }
-
-    if (!fs.existsSync(feishinProjectDir)) {
-      fs.mkdirSync(feishinProjectDir, { recursive: true });
-    }
-
-    if (!fs.existsSync(projectTemplateFile)) {
-      if (fs.existsSync(bundledTemplate)) {
-        fs.copyFileSync(bundledTemplate, projectTemplateFile);
-      } else {
-        fs.writeFileSync(projectTemplateFile, '// Hostify Feishin template placeholder\n', 'utf-8');
-      }
-    }
-  } catch (err: any) {
-    console.warn('Error asegurando template de Feishin:', err.message);
-  }
-
   deploymentState = {
     isDeploying: true,
     logs: [
@@ -213,6 +202,8 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
     });
 
     proc.on('close', (code) => {
+      // hostify-net exists as soon as compose starts, even if a satellite failed afterwards
+      joinHostifyNetwork();
       if (code === 0) {
         deploymentState.isDeploying = false;
         deploymentState.finishedAt = new Date().toISOString();

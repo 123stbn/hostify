@@ -18,6 +18,7 @@ import {
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
 import { autoConfigureIngestionServices, ensureProwlarrLidarrSetup } from './services/provisioner.service.js';
 import { ensureNavidromeAdmin, previousNavidromeCandidates } from './services/subsonic.service.js';
+import { joinHostifyNetwork } from './services/compose.service.js';
 
 export const app = express();
 const PORT = process.env.PORT || process.env.HOSTIFY_PORT || 3500;
@@ -136,6 +137,9 @@ async function startServer() {
       console.warn('[Hostify Navidrome] Initial admin sync failed:', err?.message || err);
     });
   }
+
+  // Standalone/Portainer: make satellites resolvable by the gateway (no-op if already attached)
+  joinHostifyNetwork();
 
   app.listen(PORT, () => {
     console.log(`[Hostify Appliance] Server running on http://localhost:${PORT}`);
