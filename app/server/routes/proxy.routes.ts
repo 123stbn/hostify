@@ -42,14 +42,38 @@ export const navidromeProxyMiddleware = createProxyMiddleware({
   }
 });
 
-// Feishin web client proxy
+// Feishin web client proxy. Its settings.js ships with an empty SERVER_URL (invalid with SERVER_LOCK),
+// so we rewrite it on the fly with the origin the browser used to reach this gateway.
 export const feishinProxyMiddleware = createProxyMiddleware({
   pathFilter: '/feishin/**',
   router: () => resolveServiceTarget('feishin', 9180, Number(process.env.FEISHIN_HOST_PORT) || 9182),
   pathRewrite: { '^/feishin': '' },
   changeOrigin: true,
-  ws: true
+  ws: true,
+  selfHandleResponse: true,
+  on: {
+    proxyReq: (proxyReq) => {
+      // Avoid compressed upstream bodies so the interceptor can edit settings.js
+      proxyReq.setHeader('accept-encoding', 'identity');
+    },
+    proxyRes: responseInterceptor(async (buffer, proxyRes, req: any) => {
+      const reqPath: string = req.originalUrl || req.url || '';
+      if (!/\/settings\.js(\?|$)/.test(reqPath)) return buffer;
+      const proto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+      const origin = `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+      return buffer
+        .toString('utf8')
+        .replace(/(window\.SERVER_URL\s*=\s*)"[^"]*"/, `$1${JSON.stringify(origin)}`);
+    }),
+    error: (err: any, _req: any, res: any) => {
+      console.error('[Hostify Gateway] Feishin upstream error:', err?.message || err);
+      if (res && !res.headersSent && typeof res.status === 'function') {
+        res.status(502).json({ error: 'Feishin service unreachable or starting up' });
+      }
+    }
+  }
 });
+
 
 // Slskd Soulseek P2P web UI proxy (preserves /tools/slskd SLSKD_URL_BASE)
 export const slskdProxyMiddleware = createProxyMiddleware({
