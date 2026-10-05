@@ -82,12 +82,13 @@ irm https://raw.githubusercontent.com/123stbn/hostify/main/install.ps1 | iex
 
 ### Method 2: Portainer / Synology / QNAP / CasaOS (Pre-Built Image)
 
-If you manage your NAS or home server via **Portainer**, **Dockge**, **CasaOS**, or **Synology Container Manager**, deploy a single Stack using the official lightweight image:
+If you manage your NAS or home server via **Portainer**, **Dockge**, **CasaOS**, or **Synology Container Manager**, create a new Stack using this production-ready compose template:
 
 ```yaml
 version: '3.8'
 
 services:
+  # Hostify Appliance: Web Dashboard, Setup Wizard & Satellite Orchestrator
   hostify:
     image: ghcr.io/123stbn/hostify/appliance:latest
     container_name: hostify-appliance
@@ -104,15 +105,16 @@ services:
       - TZ=America/Lima
       - HOST_HOSTNAME=hostify
     volumes:
+      # Required: Grants Hostify access to orchestrate Navidrome, Feishin, Slskd, etc.
       - /var/run/docker.sock:/var/run/docker.sock
       # Persistent workspace where Hostify stores state, .env, and generated configs
       - /volume1/docker/hostify/project:/app/project
-      # Your music storage root directory
+      # Your central music storage directory (scanned recursively by Navidrome)
       - /volume1/music:/music
-      # Data directory for satellite downloaders & databases
+      # Data directory for satellite downloaders, databases, and caches
       - /volume1/docker/hostify:/volume1/docker/hostify
 
-  # mDNS (Bonjour) LAN broadcaster: allows access via http://hostify.local:3500 on all local devices
+  # mDNS (Bonjour) LAN broadcaster: enables http://hostify.local:3500 on all local devices
   avahi:
     image: flungo/avahi:latest
     container_name: hostify-avahi
@@ -126,6 +128,8 @@ services:
       - SERVER_USE_IPV6=no
       - PUBLISH_PUBLISH_WORKSTATION=yes
 ```
+
+> **Note on Storage Paths:** Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths. Once deployed in Portainer, open **`http://<NAS-IP>:3500`** or **`http://hostify.local:3500`** to complete the browser onboarding wizard. Hostify will automatically provision and manage all satellite streaming and downloader services.
 
 ---
 

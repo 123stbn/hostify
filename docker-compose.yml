@@ -121,8 +121,6 @@ services:
       - NAVIDROME_ADMIN_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-}
       - ANALYTICS_DISABLED=true
       - FS_GENERAL_THEME=defaultDark
-    volumes:
-      - ./docker/feishin/settings.js.template:/etc/nginx/templates/settings.js.template:ro
     networks:
       - hostify-net
 
