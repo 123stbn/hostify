@@ -150,6 +150,54 @@ export async function triggerNavidromeScan(): Promise<any> {
 }
 
 /**
+ * Retrieve total count of indexed tracks directly from Navidrome
+ */
+export async function getNavidromeLibraryCount(): Promise<number | null> {
+  const creds = getNavidromeCredentials();
+  if (!creds) {
+    return null;
+  }
+  const target = getNavidromeTarget();
+
+  // 1. Try Subsonic getScanStatus endpoint
+  try {
+    const scanUrl = `${target}/rest/getScanStatus?u=${encodeURIComponent(creds.user)}&p=${encodeURIComponent(creds.pass)}&v=1.16.1&c=hostify-dashboard&f=json`;
+    const res = await fetch(scanUrl, {
+      headers: { 'Remote-User': creds.user },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const data = await res.json() as any;
+      const count = data?.['subsonic-response']?.scanStatus?.count;
+      if (typeof count === 'number' && count >= 0) {
+        return count;
+      }
+    }
+  } catch {}
+
+  // 2. Try Navidrome REST endpoint with Remote-User header
+  try {
+    const res = await fetch(`${target}/api/song?_end=1&_start=0`, {
+      headers: {
+        'Remote-User': creds.user,
+      },
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      const totalHeader = res.headers.get('x-total-count');
+      if (totalHeader) {
+        const count = parseInt(totalHeader, 10);
+        if (!isNaN(count) && count >= 0) {
+          return count;
+        }
+      }
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
  * Fetch currently playing track from Navidrome
  */
 export async function getNowPlaying(): Promise<{ active: boolean; track: NowPlayingTrack | null; error?: string }> {

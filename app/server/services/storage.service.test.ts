@@ -36,6 +36,28 @@ describe('Storage Service (storage.service.ts)', () => {
     assert.equal(count, 2);
   });
 
+  test('countFilesRecursively ignores Synology @eaDir and #recycle folders and counts diverse audio formats', () => {
+    const eaDir = path.join(tmpDir, '@eaDir', 'album1');
+    const recycleDir = path.join(tmpDir, '#recycle');
+    const musicDir = path.join(tmpDir, 'artist2');
+    fs.mkdirSync(eaDir, { recursive: true });
+    fs.mkdirSync(recycleDir, { recursive: true });
+    fs.mkdirSync(musicDir, { recursive: true });
+
+    // Should be ignored
+    fs.writeFileSync(path.join(eaDir, 'track.mp3@SynoEAStream'), 'dummy');
+    fs.writeFileSync(path.join(eaDir, 'thumbnail.jpg'), 'dummy');
+    fs.writeFileSync(path.join(recycleDir, 'deleted.flac'), 'dummy');
+
+    // Should be counted
+    fs.writeFileSync(path.join(musicDir, 'song.aac'), 'dummy');
+    fs.writeFileSync(path.join(musicDir, 'song.opus'), 'dummy');
+    fs.writeFileSync(path.join(musicDir, 'song.alac'), 'dummy');
+
+    const count = countFilesRecursively(tmpDir);
+    assert.equal(count, 3);
+  });
+
   test('initStorageFolders creates personal, explo, slskd, and torrents folders', () => {
     initStorageFolders(tmpDir);
     assert.ok(fs.existsSync(path.join(tmpDir, 'personal')));

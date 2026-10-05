@@ -2,25 +2,51 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
-import { triggerNavidromeScan } from './subsonic.service.js';
+import { triggerNavidromeScan, getNavidromeLibraryCount } from './subsonic.service.js';
 
 let lastKnownTrackCount = -1;
 
-const AUDIO_EXTENSIONS = new Set(['.flac', '.mp3', '.m4a', '.ogg', '.wav', '.opus']);
+const AUDIO_EXTENSIONS = new Set([
+  '.flac', '.mp3', '.m4a', '.ogg', '.wav', '.opus',
+  '.aac', '.wma', '.alac', '.aiff', '.aif', '.ape',
+  '.mpc', '.dsf', '.dff'
+]);
+
+const IGNORED_FOLDERS = new Set([
+  '@eadir', '.recycle', '#recycle', '.trash', '.ds_store', 'thumbs.db', '.git'
+]);
 
 /**
- * Conteo no recursivo manual, usando el soporte recursivo nativo de Node.js 20+
+ * Resilient recursive audio file count, skipping NAS/system folders and gracefully ignoring unreadable dirs
  */
 export function countFilesRecursively(dirPath: string): number {
   let count = 0;
-  try {
-    const entries = fs.readdirSync(dirPath, { recursive: true, withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isFile() && AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-        count++;
+  function walk(currentDir: string, depth = 0) {
+    if (depth > 25) return;
+    try {
+      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const nameLower = entry.name.toLowerCase();
+        if (IGNORED_FOLDERS.has(nameLower) || nameLower.startsWith('.@')) {
+          continue;
+        }
+        const full = path.join(currentDir, entry.name);
+        try {
+          if (entry.isDirectory()) {
+            walk(full, depth + 1);
+          } else if (entry.isFile() && AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+            count++;
+          }
+        } catch {
+          // Gracefully continue on unreadable individual files or subfolders
+        }
       }
+    } catch {
+      // Gracefully continue on unreadable directory
     }
-  } catch {}
+  }
+
+  walk(dirPath);
   return count;
 }
 
@@ -65,6 +91,14 @@ export async function getStorageStatus() {
     totalFiles = subdirsTotal;
   }
 
+  // Query Navidrome as authoritative index for scanned tracks
+  try {
+    const naviCount = await getNavidromeLibraryCount();
+    if (typeof naviCount === 'number' && naviCount > totalFiles) {
+      totalFiles = naviCount;
+    }
+  } catch {}
+
   // Any music file in musicRoot outside explo, slskd, and torrents belongs to the user's personal collection
   const exploCount = folderStatus.explo?.fileCount || 0;
   const slskdCount = folderStatus.slskd?.fileCount || 0;
@@ -75,7 +109,7 @@ export async function getStorageStatus() {
   );
 
   folderStatus.personal = {
-    exists: folderStatus.personal?.exists || fs.existsSync(effectiveMusicDir),
+    exists: folderStatus.personal?.exists || fs.existsSync(effectiveMusicDir) || totalFiles > 0,
     path: path.join(musicRoot, 'personal'),
     fileCount: personalCount
   };
@@ -89,7 +123,7 @@ export async function getStorageStatus() {
 
   return {
     musicRoot,
-    exists: fs.existsSync(effectiveMusicDir),
+    exists: fs.existsSync(effectiveMusicDir) || totalFiles > 0,
     folders: folderStatus,
     totalTrackCount: totalFiles,
   };
