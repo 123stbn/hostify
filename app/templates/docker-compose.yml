@@ -224,8 +224,8 @@ services:
       - SLSKD_NO_AUTH=true
       - SLSKD_REMOTE_CONFIGURATION=true
       - SLSKD_URL_BASE=/tools/slskd
-      - SLSKD_SLSK_USERNAME=${SLSKD_USERNAME:-hostify_user}
-      - SLSKD_SLSK_PASSWORD=${SLSKD_PASSWORD:-hostify_pass}
+      - SLSKD_SOULSEEK_USERNAME=${SLSKD_USERNAME:-}
+      - SLSKD_SOULSEEK_PASSWORD=${SLSKD_PASSWORD:-}
       - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}
       - SLSKD_DOWNLOADS_DIR=/downloads
     volumes:

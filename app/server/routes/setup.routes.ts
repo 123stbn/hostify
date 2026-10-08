@@ -51,10 +51,11 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       DOCKER_DATA: payload.dockerData || '/volume1/docker',
       BASE_URL: payload.domain ? `https://${payload.domain}` : '',
       LZ_USER: payload.listenBrainzUser || '',
-      LZ_TOKEN: payload.listenBrainzToken || '',
-      SLSKD_USERNAME: payload.slskdUser || 'hostify_user',
-      SLSKD_PASSWORD: payload.slskdPass || crypto.randomBytes(8).toString('hex'),
-      SLSKD_API_KEY: payload.slskdApiKey || crypto.randomBytes(16).toString('hex'),
+      SLSKD_USERNAME: (currentEnv.SLSKD_USERNAME && currentEnv.SLSKD_USERNAME !== 'hostify_user')
+        ? currentEnv.SLSKD_USERNAME
+        : (payload.slskdUser || `hostify_${crypto.randomBytes(4).toString('hex')}`),
+      SLSKD_PASSWORD: currentEnv.SLSKD_PASSWORD || payload.slskdPass || crypto.randomBytes(8).toString('hex'),
+      SLSKD_API_KEY: currentEnv.SLSKD_API_KEY || payload.slskdApiKey || crypto.randomBytes(16).toString('hex'),
       LIDARR_API_KEY: payload.lidarrApiKey || currentEnv.LIDARR_API_KEY || crypto.randomBytes(16).toString('hex'),
       PROWLARR_API_KEY: payload.prowlarrApiKey || currentEnv.PROWLARR_API_KEY || crypto.randomBytes(16).toString('hex'),
     };
