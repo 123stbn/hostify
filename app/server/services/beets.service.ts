@@ -43,7 +43,19 @@ export async function triggerBeetsScan(targetPath: string = '/music'): Promise<{
 
   try {
     const sanitizedPath = targetPath.replace(/[^a-zA-Z0-9_\-\/\.]/g, '') || '/music';
-    const proc = spawn('docker', ['exec', 'hostify-beets', 'sh', '-c', `rm -f /config/state.pickle && beet import -q "${sanitizedPath}"`]);
+    const patchPy = [
+      'import os',
+      "p = '/config/config.yaml'",
+      'if os.path.exists(p):',
+      '    t = open(p).read()',
+      "    t = t.replace('quiet_fallback: skip', 'quiet_fallback: asis')",
+      "    if 'match:' not in t: t += '\\nmatch:\\n  strong_rec_thresh: 0.25\\n  medium_rec_thresh: 0.50\\n  rec_gap_thresh: 0.15\\n  max_rec:\\n    missing_tracks: strong\\n    unmatched_tracks: strong\\n'",
+      "    if 'musicbrainz' not in t: t = t.replace('plugins: ', 'plugins: musicbrainz fromfilename ')",
+      "    if 'incremental_skip_later:' not in t: t = t.replace('incremental: yes', 'incremental: yes\\n  incremental_skip_later: yes\\n  group_albums: yes')",
+      "    open(p, 'w').write(t)"
+    ].join('; ');
+    const runCmd = `python3 -c "${patchPy}" 2>/dev/null; rm -f /config/state.pickle; beet import -q --quiet-fallback=asis -g -R "${sanitizedPath}"`;
+    const proc = spawn('docker', ['exec', 'hostify-beets', 'sh', '-c', runCmd]);
 
     proc.stdout.on('data', (chunk) => {
       const lines = chunk.toString().split('\n').map(cleanLine).filter(Boolean);
