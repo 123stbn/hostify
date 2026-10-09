@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { configureServarrXml } from './provisioner.service.js';
+import { configureServarrXml, configureBeetsYaml } from './provisioner.service.js';
 
 describe('Provisioner Service (provisioner.service.ts)', () => {
   const tmpDir = path.join(os.tmpdir(), `hostify-provisioner-test-${Date.now()}`);
@@ -92,4 +92,29 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(content.includes('<UrlBase>/tools/custom_prowlarr</UrlBase>'));
     assert.ok(!content.includes('<UrlBase>/tools/prowlarr</UrlBase>'));
   });
+
+  test('configureBeetsYaml creates default config.yaml with plugins and web on port 8337', () => {
+    const beetsConfigPath = path.join(tmpDir, 'beets_config.yaml');
+    configureBeetsYaml(beetsConfigPath);
+
+    assert.ok(fs.existsSync(beetsConfigPath));
+    const content = fs.readFileSync(beetsConfigPath, 'utf-8');
+    assert.ok(content.includes('directory: /music'));
+    assert.ok(content.includes('plugins: web fetchart embedart scrub info lyrics chroma'));
+    assert.ok(content.includes('port: 8337'));
+    assert.ok(content.includes('reverse_proxy: yes'));
+  });
+
+  test('configureBeetsYaml patches web plugin configuration if missing in existing file', () => {
+    const beetsConfigPath = path.join(tmpDir, 'existing_beets.yaml');
+    fs.writeFileSync(beetsConfigPath, 'directory: /custom/dir\nplugins: fetchart\n', 'utf-8');
+
+    configureBeetsYaml(beetsConfigPath);
+
+    const content = fs.readFileSync(beetsConfigPath, 'utf-8');
+    assert.ok(content.includes('directory: /custom/dir'));
+    assert.ok(content.includes('web:'));
+    assert.ok(content.includes('port: 8337'));
+  });
 });
+

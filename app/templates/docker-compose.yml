@@ -156,6 +156,25 @@ services:
       - hostify-net
 
   # ----------------------------------------------------------------------------
+  # METADATA ENRICHMENT & ALBUM CATALOGER: BEETS (MUSICBRAINZ AUTOTAGGER)
+  # ----------------------------------------------------------------------------
+  beets:
+    image: lscr.io/linuxserver/beets:latest
+    container_name: hostify-beets
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
+      - TZ=${TZ:-America/Lima}
+    volumes:
+      - ${DOCKER_DATA:-/volume1/docker}/beets/config:/config
+      - ${MUSIC_ROOT:-/volume1/music}:/music
+    expose:
+      - "8337"
+    networks:
+      - hostify-net
+
+  # ----------------------------------------------------------------------------
   # INGESTION 1: DIRECT AUDIO DOWNLOADER & CURATOR (EXPLO)
   # ----------------------------------------------------------------------------
   explo:
@@ -224,6 +243,8 @@ services:
       - SLSKD_NO_AUTH=true
       - SLSKD_REMOTE_CONFIGURATION=true
       - SLSKD_URL_BASE=/tools/slskd
+      - SLSKD_SLSK_USERNAME=${SLSKD_USERNAME:-}
+      - SLSKD_SLSK_PASSWORD=${SLSKD_PASSWORD:-}
       - SLSKD_SOULSEEK_USERNAME=${SLSKD_USERNAME:-}
       - SLSKD_SOULSEEK_PASSWORD=${SLSKD_PASSWORD:-}
       - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}

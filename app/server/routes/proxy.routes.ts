@@ -304,3 +304,27 @@ export const scrobblerProxyMiddleware = createProxyMiddleware({
   changeOrigin: true,
   ws: true
 });
+
+// Beets music tagger web UI & API proxy
+export const beetsProxyMiddleware = createProxyMiddleware({
+  pathFilter: '/tools/beets/**',
+  router: () => resolveServiceTarget('beets', 8337),
+  pathRewrite: { '^/tools/beets': '' },
+  changeOrigin: true,
+  ws: true,
+  selfHandleResponse: true,
+  on: {
+    proxyRes: responseInterceptor(async (responseBuffer, proxyRes) => {
+      const contentType = proxyRes.headers['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        let html = responseBuffer.toString('utf8');
+        if (!html.includes('<base ')) {
+          html = html.replace('<head>', '<head>\n    <base href="/tools/beets/">');
+        }
+        return html;
+      }
+      return responseBuffer;
+    })
+  }
+});
+

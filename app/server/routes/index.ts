@@ -4,6 +4,7 @@ import { containersRouter } from './containers.routes.js';
 import { storageRouter } from './storage.routes.js';
 import { playerRouter } from './player.routes.js';
 import { setupRouter } from './setup.routes.js';
+import { beetsRouter } from './beets.routes.js';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { getNavidromeTarget } from './proxy.routes.js';
 import { ENV_FILE_PATH, parseEnv } from '../utils/env.js';
@@ -15,6 +16,7 @@ apiRouter.use(containersRouter);
 apiRouter.use(storageRouter);
 apiRouter.use(playerRouter);
 apiRouter.use(setupRouter);
+apiRouter.use(beetsRouter);
 
 // Transparent fallback for Navidrome internal API requests (e.g. /api/user, /api/listenbrainz)
 apiRouter.use(createProxyMiddleware({

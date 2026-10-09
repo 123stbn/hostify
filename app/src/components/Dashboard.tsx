@@ -5,7 +5,7 @@ import {
   Server, Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
   Laptop, Smartphone, Sparkles, Headphones, Eye, EyeOff,
   ChevronDown, ChevronUp, Maximize2, Pause, SkipForward, SkipBack,
-  Volume2, VolumeX, Shuffle, Check, Compass
+  Volume2, VolumeX, Shuffle, Check, Compass, Tag, Terminal
 } from 'lucide-react';
 import { AppStatus, ContainerInfo, SystemStats, StorageStatus, NowPlayingTrack } from '../types.js';
 import { useI18n } from '../i18n.js';
@@ -214,6 +214,14 @@ function getFriendlyComponentInfo(name: string, fallbackDesc: string, isEn: bool
       role: isEn
         ? 'Playback memory: quietly logs your listening diary to ListenBrainz.'
         : 'Memoria de escucha: registra discretamente en ListenBrainz todo lo que reproduces.',
+    };
+  }
+  if (lower.includes('beets')) {
+    return {
+      title: 'Beets',
+      role: isEn
+        ? 'Automated metadata tagger: enriches albums with MusicBrainz info, lyrics, and hi-res cover art.'
+        : 'Etiquetador y metadatos: enriquece álbumes con MusicBrainz, carátulas HD y corrige etiquetas.',
     };
   }
   if (lower.includes('tailscale')) {
@@ -463,6 +471,58 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     }
   };
 
+  const [beetsScanState, setBeetsScanState] = useState<{
+    isScanning: boolean;
+    lastScanAt: string | null;
+    lastError: string | null;
+    lastLogs: string[];
+    totalTagged: number;
+  } | null>(null);
+  const [showBeetsLogs, setShowBeetsLogs] = useState(false);
+
+  const fetchBeetsStatus = async () => {
+    try {
+      const res = await fetch('/api/tools/beets/status');
+      if (res.ok) {
+        const data = await res.json();
+        setBeetsScanState(data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    fetchBeetsStatus();
+    const bInterval = setInterval(fetchBeetsStatus, 5000);
+    return () => clearInterval(bInterval);
+  }, []);
+
+  const handleTriggerBeetsScan = async () => {
+    try {
+      setBeetsScanState(prev => prev ? { ...prev, isScanning: true } : { isScanning: true, lastScanAt: null, lastError: null, lastLogs: [], totalTagged: 0 });
+      const res = await fetch('/api/tools/beets/scan', { method: 'POST' });
+      if (res.ok) {
+        const poll = setInterval(async () => {
+          try {
+            const sRes = await fetch('/api/tools/beets/status');
+            if (sRes.ok) {
+              const sData = await sRes.json();
+              setBeetsScanState(sData);
+              if (!sData.isScanning) {
+                clearInterval(poll);
+                fetchData();
+                if (onRefreshStatus) onRefreshStatus();
+              }
+            }
+          } catch {
+            clearInterval(poll);
+          }
+        }, 1500);
+      }
+    } catch (err: any) {
+      setBeetsScanState(prev => prev ? { ...prev, isScanning: false, lastError: err.message } : null);
+    }
+  };
+
   const currentBrowserHost = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : '';
   const detectedHost = sysStats?.hostIp || status?.hostIp || '127.0.0.1';
 
@@ -495,6 +555,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const isSlskdInstalled = !!slskdContainer && slskdContainer.state !== 'not_created';
   const isSlskdRunning = slskdContainer?.state === 'running';
 
+  const beetsContainer = containers.find(c => c.name.includes('beets'));
+  const isBeetsInstalled = !!beetsContainer && beetsContainer.state !== 'not_created';
+  const isBeetsRunning = beetsContainer?.state === 'running';
+
   const getContainerUrl = (c?: ContainerInfo): string => {
     if (!c) return '/';
     if (c.name.includes('feishin')) return '/feishin/';
@@ -504,6 +568,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     if (c.name.includes('prowlarr')) return '/tools/prowlarr/';
     if (c.name.includes('lidarr')) return '/tools/lidarr/';
     if (c.name.includes('scrobbler')) return '/tools/scrobbler/';
+    if (c.name.includes('beets')) return '/tools/beets/';
     if (c.name.includes('navidrome')) return '/app/';
     return '/';
   };
@@ -901,6 +966,86 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                 </div>
               </div>
             ) : null}
+
+            {/* Tarjeta 3: Beets • Auto-Etiquetador MusicBrainz In-Place */}
+            {isBeetsInstalled && (
+              <div className="curator-card" id="card-beets-tagger">
+                <div
+                  className="curator-card-bg-glow"
+                  style={{
+                    background: 'radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 70%)'
+                  }}
+                />
+                <div>
+                  <div className="library-stat-header">
+                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
+                      <Tag size={14} style={{ color: 'var(--accent-brass)' }} />
+                      <span>{t('beetsWidgetTitle')}</span>
+                    </span>
+                    <span className={`status-pill ${isBeetsRunning ? 'online' : 'offline'}`}>
+                      <span className="status-dot"></span>
+                      <span>{isBeetsRunning ? t('online') : t('offline')}</span>
+                    </span>
+                  </div>
+
+                  <p className="curator-desc">
+                    {t('beetsWidgetDesc')}
+                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
+                    <span>
+                      {t('beetsLastScan')}: {beetsScanState?.lastScanAt ? new Date(beetsScanState.lastScanAt).toLocaleTimeString() : t('beetsNeverScanned')}
+                    </span>
+                    {beetsScanState?.totalTagged ? (
+                      <span>• {beetsScanState.totalTagged} {t('tracksIndexed')}</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="curator-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleTriggerBeetsScan}
+                    disabled={beetsScanState?.isScanning || !isBeetsRunning || !status?.dockerAvailable}
+                    id="btn-scan-beets"
+                    title={t('tagMusicBtn')}
+                  >
+                    <RefreshCw size={12} className={beetsScanState?.isScanning ? 'spin' : ''} />
+                    <span>{beetsScanState?.isScanning ? t('taggingMusicBtn') : t('tagMusicBtn')}</span>
+                  </button>
+
+                  {beetsScanState?.lastLogs && beetsScanState.lastLogs.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                      onClick={() => setShowBeetsLogs(prev => !prev)}
+                      id="btn-toggle-beets-logs"
+                    >
+                      <Terminal size={12} />
+                      <span>{showBeetsLogs ? t('beetsHideLogs') : t('beetsViewLogs')}</span>
+                    </button>
+                  )}
+                </div>
+
+                {beetsScanState?.lastError && (
+                  <div style={{ color: 'var(--status-err-text)', fontSize: '0.74rem', marginTop: '8px' }}>
+                    {beetsScanState.lastError}
+                  </div>
+                )}
+
+                {(showBeetsLogs || beetsScanState?.isScanning) && beetsScanState?.lastLogs && beetsScanState.lastLogs.length > 0 && (
+                  <div className="beets-log-terminal" id="beets-log-stream">
+                    {beetsScanState.lastLogs.map((log, idx) => (
+                      <div key={idx} className={`log-line ${idx === beetsScanState.lastLogs.length - 1 ? 'active' : ''}`}>
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ marginBottom: '20px' }}>
@@ -1080,6 +1225,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                         {c.name.includes('feishin') && <Music size={18} />}
                         {c.name.includes('navidrome') && <Radio size={18} />}
                         {c.name.includes('scrobbler') && <Disc3 size={18} />}
+                        {c.name.includes('beets') && <Tag size={18} />}
                         {c.name.includes('slskd') && <DownloadCloud size={18} />}
                         {c.name.includes('explo') && <Sparkles size={18} />}
                         {c.name.includes('qbittorrent') && <Server size={18} />}

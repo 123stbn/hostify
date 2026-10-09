@@ -52,6 +52,7 @@
 | **Hostify Appliance** | `hostify-appliance` | `3500` | `3500` | Management Web Dashboard & Gateway |
 | **Navidrome** | `hostify-navidrome` | `4533` | `4533` | OpenSubsonic Music Streaming Server |
 | **Feishin** | `hostify-feishin` | `9180` | `9182` | Modern Spotify-style Web Client |
+| **Beets** | `hostify-beets` | `8337` | `8337` | MusicBrainz Auto-Tagger & Cover Embedder |
 | **Slskd** | `hostify-slskd` | `5030` | `5030` | Soulseek P2P Download Daemon & Web UI |
 | **Explo** | `hostify-explo` | `7288` | `7288` | Smart Playlist & Curator Download Agent |
 | **Multi-Scrobbler** | `hostify-multi-scrobbler` | `9078` | `9078` | Scrobble aggregator (ListenBrainz/Last.fm) |

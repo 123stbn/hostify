@@ -349,8 +349,8 @@ DOCKER_DATA=${DEFAULT_DOCKER}
 BASE_URL=
 LZ_USER=
 LZ_TOKEN=
-SLSKD_USERNAME=hostify_user
-SLSKD_PASSWORD=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 12 || echo "hostify_pass")
+SLSKD_USERNAME=hostify_$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom 2>/dev/null | head -c 8 || echo "$RANDOM")
+SLSKD_PASSWORD=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 16 || echo "hostify_pass")
 SLSKD_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 24 || echo "hostify_api_key")
 LIDARR_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 32 || echo "lidarr_secret_key")
 PROWLARR_API_KEY=$(LC_ALL=C tr -dc 'a-zA-Z0-9' < /dev/urandom 2>/dev/null | head -c 32 || echo "prowlarr_secret_key")

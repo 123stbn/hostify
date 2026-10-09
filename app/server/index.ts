@@ -13,7 +13,8 @@ import {
   qbittorrentProxyMiddleware,
   prowlarrProxyMiddleware,
   lidarrProxyMiddleware,
-  scrobblerProxyMiddleware
+  scrobblerProxyMiddleware,
+  beetsProxyMiddleware
 } from './routes/proxy.routes.js';
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
 import { autoConfigureIngestionServices, ensureProwlarrLidarrSetup } from './services/provisioner.service.js';
@@ -38,6 +39,7 @@ app.use((req, res, next) => {
 // Normalize tool paths with trailing slashes so relative HTML assets load properly
 const TOOL_SUBPATHS = [
   '/tools/scrobbler',
+  '/tools/beets',
   '/tools/slskd',
   '/tools/explo',
   '/tools/qbittorrent',
@@ -67,6 +69,7 @@ app.use(qbittorrentProxyMiddleware);
 app.use(prowlarrProxyMiddleware);
 app.use(lidarrProxyMiddleware);
 app.use(scrobblerProxyMiddleware);
+app.use(beetsProxyMiddleware);
 
 app.use(express.json());
 

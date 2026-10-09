@@ -733,7 +733,7 @@ body {
    ============================================================================== */
 .library-curator-widget {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -850,6 +850,30 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.beets-log-terminal {
+  margin-top: 12px;
+  background: rgba(14, 14, 18, 0.95);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  max-height: 140px;
+  overflow-y: auto;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.beets-log-terminal .log-line {
+  margin-bottom: 2px;
+}
+
+.beets-log-terminal .log-line.active {
+  color: var(--accent-brass);
 }
 
 

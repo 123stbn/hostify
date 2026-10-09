@@ -13,5 +13,10 @@ describe('Proxy Gateway (proxy.routes.ts)', () => {
     const target = resolveServiceTarget('navidrome', 4533);
     assert.ok(typeof target === 'string');
     assert.ok(target.includes('4533'));
+
+    const beetsTarget = resolveServiceTarget('beets', 8337);
+    assert.ok(typeof beetsTarget === 'string');
+    assert.ok(beetsTarget.includes('8337'));
   });
 });
+

@@ -109,7 +109,7 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   }
 
   // Read active modules configuration
-  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler'];
+  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets'];
   let modulesActive: Record<string, boolean> = {};
   if (fs.existsSync(CONFIG_FLAG_PATH)) {
     try {
@@ -215,11 +215,19 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
       '--env-file', ENV_FILE_PATH,
       '-p', 'hostify',
       '-f', composePath,
+    ];
+
+    const overridePath = path.join(PROJECT_DIR, 'docker-compose.override.yml');
+    if (fs.existsSync(overridePath)) {
+      cmdArgs.push('-f', overridePath);
+    }
+
+    cmdArgs.push(
       'up',
       '-d',
       '--remove-orphans',
       ...selectedServices,
-    ];
+    );
 
     const proc = spawn('docker', cmdArgs, {
       cwd: PROJECT_DIR,

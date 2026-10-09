@@ -269,9 +269,115 @@ window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
         try { fs.writeFileSync(projectTemplateFile, templateContent, 'utf-8'); } catch {}
       }
     }
+
+    // 4. Beets Zero-Config
+    const beetsConfigDir = path.join(dockerData, 'beets', 'config');
+    const personalDir = path.join(musicRoot, 'personal');
+
+    if (!fs.existsSync(beetsConfigDir)) fs.mkdirSync(beetsConfigDir, { recursive: true });
+    if (!fs.existsSync(personalDir)) {
+      try { fs.mkdirSync(personalDir, { recursive: true }); } catch {}
+    }
+
+    configureBeetsYaml(path.join(beetsConfigDir, 'config.yaml'));
   } catch (err: any) {
-    console.error('Error auto-configurando qbittorrent/prowlarr/lidarr/feishin:', err.message);
+    console.error('Error auto-configurando qbittorrent/prowlarr/lidarr/feishin/beets:', err.message);
   }
+}
+
+/**
+ * Auto-aprovisionar config.yaml para Beets (MusicBrainz tagger y embebedor de carátulas)
+ */
+export function configureBeetsYaml(configPath: string): void {
+  const defaultYaml = `# Beets Configuration provisioned automatically by Hostify
+# In-place transparent tagging across /music (personal, slskd, explo, torrents)
+directory: /music
+library: /config/musiclibrary.db
+
+plugins: web fetchart embedart scrub info lyrics chroma
+
+asciify_paths: yes
+
+import:
+  copy: no
+  move: no
+  write: yes
+  autotag: yes
+  resume: yes
+  incremental: yes
+  quiet_fallback: skip
+  log: /config/beet.log
+
+web:
+  host: 0.0.0.0
+  port: 8337
+  reverse_proxy: yes
+
+paths:
+  default: $albumartist/$album%aunique{}/$track - $title
+  singleton: Non-Album/$artist - $title
+  comp: Compilations/$album%aunique{}/$track - $title
+
+fetchart:
+  auto: yes
+  maxwidth: 1200
+  sources:
+    - filesystem
+    - coverart
+    - itunes
+    - amazon
+    - albumart
+
+embedart:
+  auto: yes
+  remove_art_file: no
+
+scrub:
+  auto: yes
+`;
+
+  if (fs.existsSync(configPath)) {
+    let content = fs.readFileSync(configPath, 'utf-8');
+    let modified = false;
+
+    // Remove crashing replaygain plugin if present
+    if (content.includes('replaygain')) {
+      content = content.replace(/replaygain\s*/g, '');
+      modified = true;
+    }
+
+    // Ensure in-place mode: copy: no, move: no
+    if (content.includes('copy: yes')) {
+      content = content.replace('copy: yes', 'copy: no');
+      modified = true;
+    }
+    if (content.includes('directory: /music/personal')) {
+      content = content.replace('directory: /music/personal', 'directory: /music');
+      modified = true;
+    }
+
+    // Ensure web plugin is present
+    if (!content.includes('web:') && !content.includes('web :')) {
+      content += `\nweb:\n  host: 0.0.0.0\n  port: 8337\n  reverse_proxy: yes\n`;
+      modified = true;
+    }
+
+    // Fix fetchart sources list formatting if string was used
+    if (content.includes('sources: coverart itunes amazon albumart')) {
+      content = content.replace(
+        'sources: coverart itunes amazon albumart',
+        'sources:\n    - filesystem\n    - coverart\n    - itunes\n    - amazon\n    - albumart'
+      );
+      modified = true;
+    }
+
+    if (modified) {
+      fs.writeFileSync(configPath, content, 'utf-8');
+    }
+    return;
+  }
+
+  fs.writeFileSync(configPath, defaultYaml, 'utf-8');
 }
 
 /**

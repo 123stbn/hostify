@@ -61,6 +61,10 @@ export async function getStorageStatus() {
     : (fs.existsSync('/music') ? '/music' : musicRoot);
 
   const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
+  // Keep legacy inbox reporting only if folder physically exists on disk
+  if (fs.existsSync(path.join(effectiveMusicDir, 'inbox'))) {
+    subdirs.push('inbox');
+  }
   const folderStatus: Record<string, { exists: boolean; path: string; fileCount: number }> = {};
 
   let subdirsTotal = 0;

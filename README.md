@@ -31,8 +31,8 @@ Commercial music streaming services lock your music behind monthly subscriptions
 - 🚀 **Onboarding in < 5 minutes:** Step-by-step browser wizard (*Setup Wizard*) that autodetects music paths, provisions directory trees, and validates credentials.
 - ⚡ **Ultra-Lightweight Streaming:** Engine powered by **Navidrome** (built in Go, consuming < 60 MB RAM), replacing resource-heavy alternatives with full **OpenSubsonic API** compatibility.
 - 📱 **Client Ecosystem:** Seamless native compatibility with **Feishin** (Spotify-like modern desktop player for macOS, Windows, and Linux), **Symfonium** (Android client with parametric EQ and offline caching), and **SubSonify / Amperfy** (iOS & CarPlay).
-- 🏷️ **Smart Metadata & Scrobbling:** Decoupled integration with **Multi-Scrobbler**, tag normalization via **MusicBrainz**, and automatic listen-logging to **ListenBrainz**.
-- 🗂️ **Segmented Ingestion Architecture:** Independent download modules (**Slskd** for Soulseek P2P, **Explo** for automated playlist curator downloads, and the **Lidarr + Prowlarr + qBittorrent** combo with an isolated temporary download buffer) depositing into dedicated subfolders under a unified music root.
+- 🏷️ **Smart Metadata & Auto-Tagging:** Built-in **Beets** cataloger powered by MusicBrainz for automated tagging, lyric fetching, and artwork embedding, plus **Multi-Scrobbler** for real-time ListenBrainz history.
+- 🗂️ **Segmented Ingestion Architecture:** Independent download and ingestion modules (**Slskd** for Soulseek P2P, **Explo** for automated playlist curator downloads, and the **Lidarr + Prowlarr + qBittorrent** combo with an isolated temporary download buffer) depositing into dedicated subfolders under a unified music root.
 - 🔒 **Flexible Remote Access:** Built-in support for **Tailscale** private mesh networks (0 router ports exposed to the Internet) as well as **Reverse Proxies** with custom HTTPS domains (Caddy / Nginx / Traefik / Cloudflare Tunnel).
 - 📊 **Operational Dashboard:** Real-time container health and memory monitoring, live log inspection, storage analytics, and copy-paste connection parameters for third-party music clients.
 
@@ -44,8 +44,7 @@ To preserve metadata integrity and prevent half-downloaded tracks from breaking 
 
 ```text
 /volume1/music/                          <-- Mounted into Navidrome (/music:ro)
-├── personal/                            <-- Personal collection & manual uploads (CD/vinyl rips, own files)
-│   └── Artist/Album/track.flac
+├── personal/                            <-- Clean personal collection (CD/vinyl rips, manual uploads)
 ├── explo/                               <-- Dedicated to smart curator downloads (Explo)
 │   └── Artist/Album/track.flac
 ├── slskd/                               <-- Dedicated to Soulseek P2P (Slskd)
@@ -56,7 +55,7 @@ To preserve metadata integrity and prevent half-downloaded tracks from breaking 
 /volume1/docker/qbittorrent/incomplete  <-- Isolated scratch buffer for active torrents (Navidrome NEVER scans this)
 ```
 
-**Golden Rule:** Navidrome mounts `/volume1/music` strictly in read-only mode (`:ro`) and scans all subdirectories recursively. You get a single, consolidated, clean discography across all your player applications.
+**Golden Rule:** Navidrome mounts `/volume1/music` strictly in read-only mode (`:ro`) and scans all subdirectories recursively. Built-in Beets enriches and embeds ID3/FLAC tags and cover art in-place without moving files or breaking downloader paths. You get a single, consolidated, clean discography across all your player applications.
 
 ---
 
@@ -82,7 +81,7 @@ irm https://raw.githubusercontent.com/123stbn/hostify/main/install.ps1 | iex
 
 ### Method 2: Portainer / Synology / QNAP / CasaOS (Pre-Built Image)
 
-If you manage your NAS or home server via **Portainer**, **Dockge**, **CasaOS**, or **Synology Container Manager**, create a new Stack using this production-ready compose template:
+If you manage your NAS or home server via **Portainer**, **Dockge**, **CasaOS**, or **Synology Container Manager**, create a new Stack using this production-ready compose template (available in [docker-compose.prod.yml](file:///Users/123stbn/Repos_Stbn/hostify/docker-compose.prod.yml)):
 
 ```yaml
 version: '3.8'
@@ -105,11 +104,11 @@ services:
       - TZ=America/Lima
       - HOST_HOSTNAME=hostify
     volumes:
-      # Required: Grants Hostify access to orchestrate Navidrome, Feishin, Slskd, etc.
+      # Required: Grants Hostify access to orchestrate Navidrome, Feishin, Slskd, Beets, etc.
       - /var/run/docker.sock:/var/run/docker.sock
       # Persistent workspace where Hostify stores state, .env, and generated configs
       - /volume1/docker/hostify/project:/app/project
-      # Your central music storage directory (scanned recursively by Navidrome)
+      # Your central music storage directory (scanned recursively by Navidrome & tagged by Beets)
       - /volume1/music:/music
       # Data directory for satellite downloaders, databases, and caches
       - /volume1/docker/hostify:/volume1/docker/hostify
@@ -130,7 +129,7 @@ services:
       PUBLISH_PUBLISH_WORKSTATION: "no"
 ```
 
-> **Note on Storage Paths:** Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths. Once deployed in Portainer, open **`http://<NAS-IP>:3500`** or **`http://hostify.local:3500`** to complete the browser onboarding wizard. Hostify will automatically provision and manage all satellite streaming and downloader services.
+> **Note on Storage Paths:** Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths. Once deployed in Portainer, open **`http://<NAS-IP>:3500`** or **`http://hostify.local:3500`** to complete the browser onboarding wizard. Hostify will automatically provision and manage all satellite streaming, auto-tagging (Beets), and downloader services.
 
 ---
 

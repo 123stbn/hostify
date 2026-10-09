@@ -87,6 +87,7 @@ export class DockerClient {
       { name: 'hostify-navidrome', shortName: 'navidrome', defaultPort: 4533, category: 'core', desc: 'OpenSubsonic Streaming Server' },
       { name: 'hostify-feishin', shortName: 'feishin', defaultPort: 9188, category: 'core', desc: 'Modern Web Player (Spotify Style / Hi-Res)' },
       { name: 'hostify-multi-scrobbler', shortName: 'multi-scrobbler', defaultPort: 9078, category: 'core', desc: 'Scrobbling & MusicBrainz Tags' },
+      { name: 'hostify-beets', shortName: 'beets', defaultPort: 8337, category: 'core', desc: 'MusicBrainz Tagging & Artwork Embedder' },
       { name: 'hostify-explo', shortName: 'explo', defaultPort: 7288, category: 'downloader', desc: 'Direct Web Audio Downloader & Curator' },
       { name: 'hostify-slskd', shortName: 'slskd', defaultPort: 5030, category: 'downloader', desc: 'Soulseek P2P Network (Hi-Fi)' },
       { name: 'hostify-qbittorrent', shortName: 'qbittorrent', defaultPort: 8080, category: 'downloader', desc: 'BitTorrent Client with Safe Buffer' },
