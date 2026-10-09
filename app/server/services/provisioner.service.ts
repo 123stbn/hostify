@@ -294,7 +294,7 @@ export function configureBeetsYaml(configPath: string): void {
 directory: /music
 library: /config/musiclibrary.db
 
-plugins: web fetchart embedart scrub info lyrics chroma
+plugins: web fetchart embedart scrub info lyrics chroma musicbrainz fromfilename
 
 asciify_paths: yes
 
@@ -305,8 +305,26 @@ import:
   autotag: yes
   resume: yes
   incremental: yes
-  quiet_fallback: skip
+  incremental_skip_later: yes
+  quiet_fallback: asis
+  group_albums: yes
   log: /config/beet.log
+
+match:
+  strong_rec_thresh: 0.25
+  medium_rec_thresh: 0.50
+  rec_gap_thresh: 0.15
+  max_rec:
+    missing_tracks: strong
+    unmatched_tracks: strong
+
+musicbrainz:
+  searchlimit: 10
+
+lyrics:
+  auto: yes
+  sources:
+    - lrclib
 
 web:
   host: 0.0.0.0
@@ -353,6 +371,36 @@ scrub:
     }
     if (content.includes('directory: /music/personal')) {
       content = content.replace('directory: /music/personal', 'directory: /music');
+      modified = true;
+    }
+
+    // Ensure quiet_fallback: asis so files are not skipped when confidence is below strict thresholds
+    if (content.includes('quiet_fallback: skip')) {
+      content = content.replace('quiet_fallback: skip', 'quiet_fallback: asis');
+      modified = true;
+    }
+
+    // Ensure incremental_skip_later and group_albums in import block
+    if (!content.includes('incremental_skip_later:')) {
+      content = content.replace('incremental: yes', 'incremental: yes\n  incremental_skip_later: yes\n  group_albums: yes');
+      modified = true;
+    }
+
+    // Ensure musicbrainz and fromfilename plugins
+    if (!content.includes('musicbrainz')) {
+      content = content.replace(/plugins:\s*/, 'plugins: musicbrainz fromfilename ');
+      modified = true;
+    }
+
+    // Ensure match configuration for tolerant tagging of downloads/singletons
+    if (!content.includes('match:')) {
+      content += `\nmatch:\n  strong_rec_thresh: 0.25\n  medium_rec_thresh: 0.50\n  rec_gap_thresh: 0.15\n  max_rec:\n    missing_tracks: strong\n    unmatched_tracks: strong\n`;
+      modified = true;
+    }
+
+    // Ensure lyrics configuration with LRCLib
+    if (!content.includes('lyrics:')) {
+      content += `\nlyrics:\n  auto: yes\n  sources:\n    - lrclib\n`;
       modified = true;
     }
 

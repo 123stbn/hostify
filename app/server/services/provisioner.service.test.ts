@@ -100,7 +100,10 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(fs.existsSync(beetsConfigPath));
     const content = fs.readFileSync(beetsConfigPath, 'utf-8');
     assert.ok(content.includes('directory: /music'));
-    assert.ok(content.includes('plugins: web fetchart embedart scrub info lyrics chroma'));
+    assert.ok(content.includes('plugins: web fetchart embedart scrub info lyrics chroma musicbrainz fromfilename'));
+    assert.ok(content.includes('quiet_fallback: asis'));
+    assert.ok(content.includes('incremental_skip_later: yes'));
+    assert.ok(content.includes('strong_rec_thresh: 0.25'));
     assert.ok(content.includes('port: 8337'));
     assert.ok(content.includes('reverse_proxy: yes'));
   });

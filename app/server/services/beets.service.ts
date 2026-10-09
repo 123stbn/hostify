@@ -42,7 +42,8 @@ export async function triggerBeetsScan(targetPath: string = '/music'): Promise<{
   const cleanLine = (str: string) => str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
 
   try {
-    const proc = spawn('docker', ['exec', 'hostify-beets', 'beet', 'import', '-q', targetPath]);
+    const sanitizedPath = targetPath.replace(/[^a-zA-Z0-9_\-\/\.]/g, '') || '/music';
+    const proc = spawn('docker', ['exec', 'hostify-beets', 'sh', '-c', `rm -f /config/state.pickle && beet import -q "${sanitizedPath}"`]);
 
     proc.stdout.on('data', (chunk) => {
       const lines = chunk.toString().split('\n').map(cleanLine).filter(Boolean);
