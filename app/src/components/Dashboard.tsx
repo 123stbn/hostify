@@ -976,57 +976,59 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                     background: 'radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 70%)'
                   }}
                 />
-                <div>
-                  <div className="library-stat-header">
-                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
-                      <Tag size={14} style={{ color: 'var(--accent-brass)' }} />
-                      <span>{t('beetsWidgetTitle')}</span>
-                    </span>
-                    <span className={`status-pill ${isBeetsRunning ? 'online' : 'offline'}`}>
-                      <span className="status-dot"></span>
-                      <span>{isBeetsRunning ? t('online') : t('offline')}</span>
-                    </span>
-                  </div>
-
-                  <p className="curator-desc">
-                    {t('beetsWidgetDesc')}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.74rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
-                    <span>
-                      {t('beetsLastScan')}: {beetsScanState?.lastScanAt ? new Date(beetsScanState.lastScanAt).toLocaleTimeString() : t('beetsNeverScanned')}
-                    </span>
-                    {beetsScanState?.totalTagged ? (
-                      <span>• {beetsScanState.totalTagged} {t('tracksIndexed')}</span>
-                    ) : null}
-                  </div>
+                <div className="library-stat-header">
+                  <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
+                    <Tag size={14} style={{ color: 'var(--accent-brass)' }} />
+                    <span>{t('beetsWidgetTitle')}</span>
+                  </span>
+                  <span className={`status-pill ${isBeetsRunning ? 'online' : 'offline'}`}>
+                    <span className="status-dot"></span>
+                    <span>{isBeetsRunning ? t('online') : t('offline')}</span>
+                  </span>
                 </div>
 
-                <div className="curator-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={handleTriggerBeetsScan}
-                    disabled={beetsScanState?.isScanning || !isBeetsRunning || !status?.dockerAvailable}
-                    id="btn-scan-beets"
-                    title={t('tagMusicBtn')}
-                  >
-                    <RefreshCw size={12} className={beetsScanState?.isScanning ? 'spin' : ''} />
-                    <span>{beetsScanState?.isScanning ? t('taggingMusicBtn') : t('tagMusicBtn')}</span>
-                  </button>
+                <div className="beets-card-body">
+                  <div className="beets-card-desc-group">
+                    <p className="curator-desc" style={{ margin: '8px 0 10px' }}>
+                      {t('beetsWidgetDesc')}
+                    </p>
 
-                  {beetsScanState?.lastLogs && beetsScanState.lastLogs.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                      <span>
+                        {t('beetsLastScan')}: {beetsScanState?.lastScanAt ? new Date(beetsScanState.lastScanAt).toLocaleTimeString() : t('beetsNeverScanned')}
+                      </span>
+                      {beetsScanState?.totalTagged ? (
+                        <span>• {beetsScanState.totalTagged} {t('tracksIndexed')}</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="curator-actions beets-card-actions">
                     <button
                       type="button"
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.72rem', padding: '4px 8px' }}
-                      onClick={() => setShowBeetsLogs(prev => !prev)}
-                      id="btn-toggle-beets-logs"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleTriggerBeetsScan}
+                      disabled={beetsScanState?.isScanning || !isBeetsRunning || !status?.dockerAvailable}
+                      id="btn-scan-beets"
+                      title={t('tagMusicBtn')}
                     >
-                      <Terminal size={12} />
-                      <span>{showBeetsLogs ? t('beetsHideLogs') : t('beetsViewLogs')}</span>
+                      <RefreshCw size={12} className={beetsScanState?.isScanning ? 'spin' : ''} />
+                      <span>{beetsScanState?.isScanning ? t('taggingMusicBtn') : t('tagMusicBtn')}</span>
                     </button>
-                  )}
+
+                    {beetsScanState?.lastLogs && beetsScanState.lastLogs.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: '0.72rem', padding: '4px 8px' }}
+                        onClick={() => setShowBeetsLogs(prev => !prev)}
+                        id="btn-toggle-beets-logs"
+                      >
+                        <Terminal size={12} />
+                        <span>{showBeetsLogs ? t('beetsHideLogs') : t('beetsViewLogs')}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {beetsScanState?.lastError && (

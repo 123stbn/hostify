@@ -733,7 +733,7 @@ body {
    ============================================================================== */
 .library-curator-widget {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -742,6 +742,32 @@ body {
   .library-curator-widget {
     grid-template-columns: 1fr;
   }
+}
+
+#card-beets-tagger {
+  grid-column: 1 / -1;
+}
+
+.beets-card-body {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.beets-card-desc-group {
+  flex: 1;
+  min-width: 280px;
+}
+
+.beets-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-top: 10px;
 }
 
 .library-stat-card {
