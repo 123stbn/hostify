@@ -100,7 +100,7 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(fs.existsSync(beetsConfigPath));
     const content = fs.readFileSync(beetsConfigPath, 'utf-8');
     assert.ok(content.includes('directory: /music'));
-    assert.ok(content.includes('plugins: web fetchart embedart scrub info lyrics chroma musicbrainz fromfilename'));
+    assert.ok(content.includes('plugins: chroma embedart fetchart fromfilename info lyrics musicbrainz scrub web'));
     assert.ok(content.includes('quiet_fallback: asis'));
     assert.ok(content.includes('fetch_for_asis: yes'));
     assert.ok(content.includes('incremental_skip_later: yes'));
@@ -109,16 +109,17 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(content.includes('reverse_proxy: yes'));
   });
 
-  test('configureBeetsYaml patches web plugin configuration if missing in existing file', () => {
+  test('configureBeetsYaml overwrites existing config.yaml with canonical configuration', () => {
     const beetsConfigPath = path.join(tmpDir, 'existing_beets.yaml');
-    fs.writeFileSync(beetsConfigPath, 'directory: /custom/dir\nplugins: fetchart\n', 'utf-8');
+    fs.writeFileSync(beetsConfigPath, 'corrupted: yaml\n  syntax error\n', 'utf-8');
 
     configureBeetsYaml(beetsConfigPath);
 
     const content = fs.readFileSync(beetsConfigPath, 'utf-8');
-    assert.ok(content.includes('directory: /custom/dir'));
+    assert.ok(content.includes('directory: /music'));
     assert.ok(content.includes('web:'));
     assert.ok(content.includes('port: 8337'));
+    assert.ok(content.includes('fetch_for_asis: yes'));
   });
 });
 

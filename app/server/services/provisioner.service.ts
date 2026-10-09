@@ -286,15 +286,14 @@ window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
 }
 
 /**
- * Auto-aprovisionar config.yaml para Beets (MusicBrainz tagger y embebedor de carátulas)
+ * Canonical configuration for Beets (MusicBrainz autotagger, artwork fetcher & embedder)
  */
-export function configureBeetsYaml(configPath: string): void {
-  const defaultYaml = `# Beets Configuration provisioned automatically by Hostify
+export const BEETS_CONFIG_YAML = `# Beets Configuration provisioned automatically by Hostify
 # In-place transparent tagging across /music (personal, slskd, explo, torrents)
 directory: /music
 library: /config/musiclibrary.db
 
-plugins: web fetchart embedart scrub info lyrics chroma musicbrainz fromfilename
+plugins: chroma embedart fetchart fromfilename info lyrics musicbrainz scrub web
 
 asciify_paths: yes
 
@@ -356,97 +355,12 @@ scrub:
   auto: yes
 `;
 
-  if (fs.existsSync(configPath)) {
-    let content = fs.readFileSync(configPath, 'utf-8');
-    let modified = false;
-
-    // Remove crashing replaygain plugin if present
-    if (content.includes('replaygain')) {
-      content = content.replace(/replaygain\s*/g, '');
-      modified = true;
-    }
-
-    // Ensure in-place mode: copy: no, move: no
-    if (content.includes('copy: yes')) {
-      content = content.replace('copy: yes', 'copy: no');
-      modified = true;
-    }
-    if (content.includes('directory: /music/personal')) {
-      content = content.replace('directory: /music/personal', 'directory: /music');
-      modified = true;
-    }
-
-    // Ensure quiet_fallback: asis so files are not skipped when confidence is below strict thresholds
-    if (content.includes('quiet_fallback: skip')) {
-      content = content.replace('quiet_fallback: skip', 'quiet_fallback: asis');
-      modified = true;
-    }
-
-    // Ensure incremental_skip_later and group_albums in import block
-    if (!content.includes('incremental_skip_later:')) {
-      content = content.replace('incremental: yes', 'incremental: yes\n  incremental_skip_later: yes\n  group_albums: yes');
-      modified = true;
-    }
-
-    // Ensure musicbrainz and fromfilename plugins
-    if (!content.includes('musicbrainz')) {
-      content = content.replace(/plugins:\s*/, 'plugins: musicbrainz fromfilename ');
-      modified = true;
-    }
-
-    // Ensure match configuration for tolerant tagging of downloads/singletons
-    if (!content.includes('match:')) {
-      content += `\nmatch:\n  strong_rec_thresh: 0.25\n  medium_rec_thresh: 0.50\n  rec_gap_thresh: 0.15\n  max_rec:\n    missing_tracks: strong\n    unmatched_tracks: strong\n`;
-      modified = true;
-    }
-
-    // Ensure lyrics configuration with LRCLib
-    if (!content.includes('lyrics:')) {
-      content += `\nlyrics:\n  auto: yes\n  sources:\n    - lrclib\n`;
-      modified = true;
-    }
-
-    // Ensure web plugin is present
-    if (!content.includes('web:') && !content.includes('web :')) {
-      content += `\nweb:\n  host: 0.0.0.0\n  port: 8337\n  reverse_proxy: yes\n`;
-      modified = true;
-    }
-
-    // Fix fetchart sources list formatting if string was used
-    if (content.includes('sources: coverart itunes amazon albumart')) {
-      content = content.replace(
-        'sources: coverart itunes amazon albumart',
-        'sources:\n    - filesystem\n    - coverart\n    - itunes\n    - amazon\n    - albumart'
-      );
-      modified = true;
-    }
-
-    // Ensure fetch_for_asis: yes so as-is imports search web sources (iTunes, CoverArt, etc.)
-    if (content.includes('fetch_for_asis: no')) {
-      content = content.replace('fetch_for_asis: no', 'fetch_for_asis: yes');
-      modified = true;
-    } else if (!content.includes('fetch_for_asis:')) {
-      if (content.includes('fetchart:')) {
-        content = content.replace('fetchart:', 'fetchart:\n  fetch_for_asis: yes');
-      } else {
-        content += '\nfetchart:\n  auto: yes\n  fetch_for_asis: yes\n';
-      }
-      modified = true;
-    }
-
-    // Ensure embedart configuration
-    if (!content.includes('embedart:')) {
-      content += '\nembedart:\n  auto: yes\n  remove_art_file: no\n  ifempty: yes\n';
-      modified = true;
-    }
-
-    if (modified) {
-      fs.writeFileSync(configPath, content, 'utf-8');
-    }
-    return;
-  }
-
-  fs.writeFileSync(configPath, defaultYaml, 'utf-8');
+/**
+ * Auto-aprovisionar config.yaml para Beets
+ */
+export function configureBeetsYaml(configPath: string): void {
+  // Always write the clean canonical Hostify configuration from scratch
+  fs.writeFileSync(configPath, BEETS_CONFIG_YAML, 'utf-8');
 }
 
 /**
