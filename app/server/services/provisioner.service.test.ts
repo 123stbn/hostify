@@ -102,6 +102,7 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(content.includes('directory: /music'));
     assert.ok(content.includes('plugins: web fetchart embedart scrub info lyrics chroma musicbrainz fromfilename'));
     assert.ok(content.includes('quiet_fallback: asis'));
+    assert.ok(content.includes('fetch_for_asis: yes'));
     assert.ok(content.includes('incremental_skip_later: yes'));
     assert.ok(content.includes('strong_rec_thresh: 0.25'));
     assert.ok(content.includes('port: 8337'));

@@ -338,6 +338,7 @@ paths:
 
 fetchart:
   auto: yes
+  fetch_for_asis: yes
   maxwidth: 1200
   sources:
     - filesystem
@@ -349,6 +350,7 @@ fetchart:
 embedart:
   auto: yes
   remove_art_file: no
+  ifempty: yes
 
 scrub:
   auto: yes
@@ -416,6 +418,25 @@ scrub:
         'sources: coverart itunes amazon albumart',
         'sources:\n    - filesystem\n    - coverart\n    - itunes\n    - amazon\n    - albumart'
       );
+      modified = true;
+    }
+
+    // Ensure fetch_for_asis: yes so as-is imports search web sources (iTunes, CoverArt, etc.)
+    if (content.includes('fetch_for_asis: no')) {
+      content = content.replace('fetch_for_asis: no', 'fetch_for_asis: yes');
+      modified = true;
+    } else if (!content.includes('fetch_for_asis:')) {
+      if (content.includes('fetchart:')) {
+        content = content.replace('fetchart:', 'fetchart:\n  fetch_for_asis: yes');
+      } else {
+        content += '\nfetchart:\n  auto: yes\n  fetch_for_asis: yes\n';
+      }
+      modified = true;
+    }
+
+    // Ensure embedart configuration
+    if (!content.includes('embedart:')) {
+      content += '\nembedart:\n  auto: yes\n  remove_art_file: no\n  ifempty: yes\n';
       modified = true;
     }
 
