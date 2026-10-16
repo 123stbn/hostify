@@ -84,6 +84,7 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     domain: currentEnv.BASE_URL ? currentEnv.BASE_URL.replace(/^https?:\/\//, '') : '',
     hostIp: getHostIp(_req.headers.host),
     localHostname: getLocalHostname(),
+    enableAvahi: currentEnv.ENABLE_AVAHI !== 'false',
     detectedPuid: currentEnv.PUID || String(detectedPuid),
     detectedPgid: currentEnv.PGID || String(detectedPgid),
     detectedTz: currentEnv.TZ || detectedTz,

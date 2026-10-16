@@ -317,14 +317,21 @@ fi
 DETECTED_HOST_IP="127.0.0.1"
 DETECTED_HOSTNAME="hostify"
 DETECTED_AVAHI_IFACE="eth0"
+ENABLE_AVAHI_SIDECAR="true"
+
 if [ "$PLATFORM" = "macos" ]; then
     DETECTED_HOST_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1")"
-    # On macOS, the real interface is usually en0 (WiFi) or en1 (Ethernet)
+    # On macOS, native Bonjour handles mDNS resolution via dns-sd LaunchAgent
     DETECTED_AVAHI_IFACE="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}' | head -1 || echo "en0")"
+    ENABLE_AVAHI_SIDECAR="false"
 elif [ "$PLATFORM" = "linux" ]; then
     DETECTED_HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo "127.0.0.1")"
     # Detect interface with default route (eth0, ens3, enp3s0, wlan0, etc.)
     DETECTED_AVAHI_IFACE="$(ip route show default 2>/dev/null | awk '/default/{print $5}' | head -1 || echo "eth0")"
+    # Check if host operating system already has native avahi-daemon running
+    if systemctl is-active --quiet avahi-daemon 2>/dev/null; then
+        ENABLE_AVAHI_SIDECAR="false"
+    fi
 fi
 
 if [ ! -f .env ]; then
@@ -339,6 +346,7 @@ TZ=${DETECTED_TZ}
 HOST_IP=${DETECTED_HOST_IP}
 HOST_HOSTNAME=${DETECTED_HOSTNAME}
 AVAHI_IFACE=${DETECTED_AVAHI_IFACE}
+ENABLE_AVAHI=${ENABLE_AVAHI_SIDECAR}
 HOSTIFY_PORT=3500
 NAVIDROME_PORT=4533
 FEISHIN_PORT=9188
@@ -367,6 +375,10 @@ else
     # Update AVAHI_IFACE in .env if not present
     if ! grep -q "^AVAHI_IFACE=" .env; then
         echo "AVAHI_IFACE=${DETECTED_AVAHI_IFACE}" >> .env
+    fi
+    # Update ENABLE_AVAHI in .env if not present
+    if ! grep -q "^ENABLE_AVAHI=" .env; then
+        echo "ENABLE_AVAHI=${ENABLE_AVAHI_SIDECAR}" >> .env
     fi
 fi
 
@@ -439,6 +451,20 @@ PLIST
     launchctl unload "${PLIST_FILE}" 2>/dev/null || true
     launchctl load -w "${PLIST_FILE}"
     echo -e "${COLOR_GREEN}  ✓ ${MDNS_HOSTNAME}.local registered. Resolvable on this Mac and all LAN devices.${COLOR_RESET}"
+elif [ "$PLATFORM" = "linux" ] && systemctl is-active --quiet avahi-daemon 2>/dev/null; then
+    echo -e "${COLOR_CYAN}==> Configuring native Linux avahi-daemon for ${MDNS_HOSTNAME}.local...${COLOR_RESET}"
+    if [ -f /etc/avahi/hosts ]; then
+        if ! grep -q "[[:space:]]${MDNS_HOSTNAME}\.local" /etc/avahi/hosts 2>/dev/null; then
+            if [ "$EUID" -eq 0 ]; then
+                echo "${DETECTED_HOST_IP} ${MDNS_HOSTNAME}.local" >> /etc/avahi/hosts
+                systemctl reload-or-restart avahi-daemon 2>/dev/null || true
+            elif command -v sudo &>/dev/null; then
+                echo "${DETECTED_HOST_IP} ${MDNS_HOSTNAME}.local" | sudo tee -a /etc/avahi/hosts >/dev/null 2>&1 || true
+                sudo systemctl reload-or-restart avahi-daemon 2>/dev/null || true
+            fi
+        fi
+        echo -e "${COLOR_GREEN}  ✓ ${MDNS_HOSTNAME}.local registered with native avahi-daemon (${DETECTED_HOST_IP}).${COLOR_RESET}"
+    fi
 fi
 
 # ------------------------------------------------------------------------------

@@ -109,7 +109,13 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   }
 
   // Read active modules configuration
-  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets', 'avahi'];
+  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets'];
+
+  // Only deploy avahi sidecar if not disabled (e.g. host has native avahi-daemon or macOS Bonjour)
+  const env = parseEnv(ENV_FILE_PATH);
+  if (env.ENABLE_AVAHI !== 'false' && process.env.ENABLE_AVAHI !== 'false') {
+    selectedServices.push('avahi');
+  }
   let modulesActive: Record<string, boolean> = {};
   if (fs.existsSync(CONFIG_FLAG_PATH)) {
     try {

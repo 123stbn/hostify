@@ -39,6 +39,7 @@ export interface AppStatus {
   domain?: string;
   hostIp: string;
   localHostname?: string;
+  enableAvahi?: boolean;
   detectedPuid?: string;
   detectedPgid?: string;
   detectedTz?: string;
