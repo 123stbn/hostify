@@ -113,23 +113,39 @@ services:
       # Data directory for satellite downloaders, databases, and caches
       - /volume1/docker/hostify:/volume1/docker/hostify
 
-  # mDNS (Bonjour) LAN broadcaster: enables http://hostify.local:3500 on all local devices
+  # Optional mDNS broadcaster sidecar (only needed if host lacks native Avahi/Bonjour)
+  # Default: Ignored to prevent port 5353 collisions with native NAS/Linux daemons.
   avahi:
     image: flungo/avahi:latest
     container_name: hostify-avahi
     restart: unless-stopped
     network_mode: host
+    profiles:
+      - mdns
+      - optional
     environment:
       SERVER_HOST_NAME: hostify
       SERVER_DOMAIN_NAME: local
       SERVER_USE_IPV4: "yes"
       SERVER_USE_IPV6: "no"
       SERVER_ENABLE_DBUS: "no"
-      SERVER_ALLOW_INTERFACES: eth0
+      SERVER_ALLOW_INTERFACES: ""
+      SERVER_DENY_INTERFACES: "docker0,lo"
+      SERVER_DISALLOW_OTHER_STACKS: "no"
+      SERVER_CHECK_RESPONSE_TTL: "no"
       PUBLISH_PUBLISH_WORKSTATION: "no"
 ```
 
-> **Note on Storage Paths:** Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths. Once deployed in Portainer, open **`http://<NAS-IP>:3500`** or **`http://hostify.local:3500`** to complete the browser onboarding wizard. Hostify will automatically provision and manage all satellite streaming, auto-tagging (Beets), and downloader services.
+> **Note on Storage Paths & Network Discovery:**
+> - Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths.
+> - **Native NAS mDNS:** Most NAS (Synology, QNAP, TrueNAS, Ubuntu) broadcast their own hostname by default: **`http://<YOUR-NAS-HOSTNAME>.local:3500`** or **`http://<NAS-IP>:3500`**.
+> - **To enable `http://hostify.local:3500` via your NAS native Avahi (Recommended):**
+>   Run these two quick commands in your NAS terminal:
+>   ```bash
+>   echo "<YOUR-NAS-IP> hostify.local" | sudo tee -a /etc/avahi/hosts
+>   sudo systemctl restart avahi-daemon
+>   ```
+> - **Containerized Avahi (`hostify-avahi`):** If your host operating system does not have `avahi-daemon` installed at all, you can enable the optional container by adding `COMPOSE_PROFILES=mdns` to your environment.
 
 ---
 

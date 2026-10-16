@@ -36,6 +36,9 @@ services:
     container_name: hostify-avahi
     restart: unless-stopped
     network_mode: host
+    profiles:
+      - mdns
+      - optional
     environment:
       SERVER_HOST_NAME: ${HOST_HOSTNAME:-hostify}
       SERVER_DOMAIN_NAME: local
