@@ -109,7 +109,7 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   }
 
   // Read active modules configuration
-  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets'];
+  let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets', 'avahi'];
   let modulesActive: Record<string, boolean> = {};
   if (fs.existsSync(CONFIG_FLAG_PATH)) {
     try {

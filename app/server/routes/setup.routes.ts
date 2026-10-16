@@ -41,7 +41,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       TZ: payload.tz || 'America/Lima',
       HOST_IP: payload.hostIp || currentEnv.HOST_IP || '',
       HOST_HOSTNAME: payload.localHostname || currentEnv.HOST_HOSTNAME || 'hostify',
-      AVAHI_IFACE: currentEnv.AVAHI_IFACE || 'eth0',
+      AVAHI_IFACE: currentEnv.AVAHI_IFACE || '',
       HOSTIFY_PORT: String(payload.hostifyPort || currentEnv.HOSTIFY_PORT || '3500'),
       NAVIDROME_PORT: String(payload.navidromePort || 4533),
       FEISHIN_PORT: String(payload.feishinPort || currentEnv.FEISHIN_PORT || 9188),

@@ -71,7 +71,7 @@ services:
       - SERVER_USE_IPV4=yes
       - SERVER_USE_IPV6=no
       # Broadcast ONLY on the host network interface (prevent internal Docker bridge loops)
-      - SERVER_ALLOW_INTERFACES=${AVAHI_IFACE:-eth0}
+      - SERVER_ALLOW_INTERFACES=${AVAHI_IFACE:-}
       - PUBLISH_PUBLISH_WORKSTATION=no
       - PUBLISH_PUBLISH_HINFO=no
 
