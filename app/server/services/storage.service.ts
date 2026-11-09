@@ -137,7 +137,11 @@ export async function getStorageStatus() {
  * Initialize and provision ingestion subfolders
  */
 export function initStorageFolders(musicRoot?: string) {
-  const targetRoot = musicRoot || parseEnv(ENV_FILE_PATH).MUSIC_ROOT || '/volume1/music';
+  const isLinux = process.platform === 'linux';
+  const rawTarget = musicRoot || parseEnv(ENV_FILE_PATH).MUSIC_ROOT || '/volume1/music';
+  // Sanitize alien paths on Linux (e.g. macOS /Users/ or Windows drive letters)
+  const isAlien = isLinux && (rawTarget.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(rawTarget));
+  const targetRoot = isAlien ? '/volume1/music' : rawTarget;
 
   if (!fs.existsSync(targetRoot)) {
     fs.mkdirSync(targetRoot, { recursive: true });
@@ -158,28 +162,45 @@ export function initStorageFolders(musicRoot?: string) {
 export function browseDirectory(queryPath?: string) {
   const isWindows = process.platform === 'win32';
   const isMac = process.platform === 'darwin';
+  const isLinux = process.platform === 'linux';
+
+  const isAlienPath = (p?: string) => {
+    if (!p) return false;
+    if (isLinux && (p.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(p))) return true;
+    if (isWindows && p.startsWith('/')) return true;
+    if (isMac && /^[A-Za-z]:[\\/]/.test(p)) return true;
+    return false;
+  };
 
   let targetPath = '';
 
-  if (queryPath) {
+  if (queryPath && !isAlienPath(queryPath)) {
     targetPath = path.resolve(queryPath);
   } else {
     // When running in Docker, HOST_HOME is the real host home dir (mounted read-only).
     // Use it as the default starting point so the picker shows the host filesystem.
     const hostHome = process.env.HOST_HOME;
-    if (hostHome && fs.existsSync(hostHome)) {
+    if (hostHome && fs.existsSync(hostHome) && !isAlienPath(hostHome)) {
       targetPath = hostHome;
     } else if (isWindows) {
       targetPath = process.env.USERPROFILE || 'C:\\';
     } else if (isMac) {
       targetPath = os.homedir();
     } else {
-      targetPath = fs.existsSync('/volume1') ? '/volume1' : os.homedir();
+      if (fs.existsSync('/volume1')) {
+        targetPath = '/volume1';
+      } else if (fs.existsSync('/music')) {
+        targetPath = '/music';
+      } else {
+        targetPath = os.homedir() || '/';
+      }
     }
   }
 
-  if (!fs.existsSync(targetPath)) {
-    targetPath = os.homedir() || (isWindows ? 'C:\\' : '/');
+  if (!fs.existsSync(targetPath) || isAlienPath(targetPath)) {
+    targetPath = fs.existsSync('/volume1')
+      ? '/volume1'
+      : (fs.existsSync('/music') ? '/music' : (os.homedir() || (isWindows ? 'C:\\' : '/')));
   }
 
   const stat = fs.statSync(targetPath);
@@ -269,15 +290,21 @@ export function browseDirectory(queryPath?: string) {
   } else {
     const userHome = os.homedir();
     const linuxCandidates = [
+      '/volume1',
+      '/volume2',
+      '/music',
+      '/volume1/music',
+      '/volume1/docker',
+      '/shares',
+      '/storage',
       path.join(userHome, 'Music'),
       path.join(userHome, 'music'),
-      userHome,
-      '/volume1/music',
+      userHome && userHome !== '/root' ? userHome : '',
       '/media',
       '/mnt',
     ];
     for (const cand of linuxCandidates) {
-      if (fs.existsSync(cand) && !commonShortcuts.includes(cand)) commonShortcuts.push(cand);
+      if (cand && fs.existsSync(cand) && !commonShortcuts.includes(cand)) commonShortcuts.push(cand);
     }
   }
 

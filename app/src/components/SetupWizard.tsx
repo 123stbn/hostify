@@ -11,11 +11,19 @@ import { useI18n } from '../i18n.js';
 
 const DRAFT_STORAGE_KEY = 'hostify_wizard_draft_v2';
 
-function loadWizardDraft() {
+function loadWizardDraft(serverPlatform?: string) {
   try {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Discard alien OS paths when running on Linux (e.g. macOS /Users/ or Windows drive letters)
+      if (serverPlatform === 'linux' && (parsed.musicRoot?.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(parsed.musicRoot || ''))) {
+        parsed.musicRoot = '/volume1/music';
+        parsed.dockerData = '/volume1/docker';
+        if (parsed.puid === '501') parsed.puid = '1000';
+        if (parsed.pgid === '20') parsed.pgid = '10';
+      }
+      return parsed;
     }
   } catch (err) {
     console.warn('Could not load wizard draft from localStorage', err);
@@ -90,7 +98,8 @@ interface SetupWizardProps {
 export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, onCancel }) => {
   const { lang, t } = useI18n();
   const isEn = lang === 'en';
-  const draft = loadWizardDraft();
+  const isServerLinux = status?.platform === 'linux';
+  const draft = React.useMemo(() => loadWizardDraft(status?.platform), [status?.platform]);
 
   const [currentStep, setCurrentStep] = useState<number>(() => {
     if (draft?.currentStep && draft.currentStep >= 1 && draft.currentStep <= 6) {
@@ -252,15 +261,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
   // Synchronize with detected server state if no prior draft was saved
   React.useEffect(() => {
-    if (!draft && status) {
-      if (status.musicRoot && status.musicRoot !== '/volume1/music') {
+    const isAlien = (p?: string) => isServerLinux && p && (p.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(p));
+    if (status) {
+      if ((!draft || isAlien(draft.musicRoot)) && status.musicRoot) {
         setMusicRoot(status.musicRoot);
       }
-      if (status.dockerData && status.dockerData !== '/volume1/docker') {
+      if ((!draft || isAlien(draft.dockerData)) && status.dockerData) {
         setDockerData(status.dockerData);
       }
+      if ((!draft || (isServerLinux && draft.puid === '501')) && status.detectedPuid) {
+        setPuid(status.detectedPuid);
+      }
+      if ((!draft || (isServerLinux && draft.pgid === '20')) && status.detectedPgid) {
+        setPgid(status.detectedPgid);
+      }
     }
-  }, [status, draft]);
+  }, [status, draft, isServerLinux]);
 
   // Auto-save draft
   React.useEffect(() => {
@@ -322,21 +338,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
   };
 
   const openPicker = (target: 'music' | 'docker') => {
+    const isAlien = (p: string) => isServerLinux && (p.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(p));
     if (target === 'music') {
-      const current = musicRoot && !musicRoot.startsWith('/volume1') ? musicRoot : (status?.musicRoot && !status.musicRoot.startsWith('/volume1') ? status.musicRoot : '');
+      const initial = musicRoot && !isAlien(musicRoot) ? musicRoot : (status?.musicRoot && !isAlien(status.musicRoot) ? status.musicRoot : '/volume1/music');
       setPickerConfig({
         isOpen: true,
         target: 'music',
-        title: 'Seleccionar Carpeta para Tu Fonoteca (/music)',
-        initialPath: current,
+        title: isEn ? 'Select Music Library Folder (/music)' : 'Seleccionar Carpeta para Tu Fonoteca (/music)',
+        initialPath: initial,
       });
     } else {
-      const current = dockerData && !dockerData.startsWith('/volume1') ? dockerData : (status?.dockerData && !status.dockerData.startsWith('/volume1') ? status.dockerData : '');
+      const initial = dockerData && !isAlien(dockerData) ? dockerData : (status?.dockerData && !isAlien(status.dockerData) ? status.dockerData : '/volume1/docker');
       setPickerConfig({
         isOpen: true,
         target: 'docker',
-        title: 'Seleccionar Carpeta de Datos del Sistema (/docker)',
-        initialPath: current,
+        title: isEn ? 'Select System Data Folder (/docker)' : 'Seleccionar Carpeta de Datos del Sistema (/docker)',
+        initialPath: initial,
       });
     }
   };

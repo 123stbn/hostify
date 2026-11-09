@@ -35,9 +35,19 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
 
   try {
     const currentEnv = parseEnv(ENV_FILE_PATH);
+    const isAlien = (p?: string) =>
+      process.platform === 'linux' && p && (p.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(p));
+
+    const musicRoot = isAlien(payload.musicRoot) ? '/volume1/music' : (payload.musicRoot || '/volume1/music');
+    const dockerData = isAlien(payload.dockerData) ? '/volume1/docker' : (payload.dockerData || '/volume1/docker');
+    const rawPuid = String(payload.puid || 1000);
+    const rawPgid = String(payload.pgid || 10);
+    const puid = (process.platform === 'linux' && rawPuid === '501') ? '1000' : rawPuid;
+    const pgid = (process.platform === 'linux' && rawPgid === '20') ? '10' : rawPgid;
+
     const envData: Record<string, string> = {
-      PUID: String(payload.puid || 1000),
-      PGID: String(payload.pgid || 10),
+      PUID: puid,
+      PGID: pgid,
       TZ: payload.tz || 'America/Lima',
       HOST_IP: payload.hostIp || currentEnv.HOST_IP || '',
       HOST_HOSTNAME: payload.localHostname || currentEnv.HOST_HOSTNAME || 'hostify',
@@ -48,8 +58,8 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       FEISHIN_PORT: String(payload.feishinPort || currentEnv.FEISHIN_PORT || 9188),
       NAVIDROME_ADMIN_USER: payload.navidromeAdminUser || currentEnv.NAVIDROME_ADMIN_USER || '',
       NAVIDROME_ADMIN_PASSWORD: payload.navidromeAdminPassword || currentEnv.NAVIDROME_ADMIN_PASSWORD || '',
-      MUSIC_ROOT: payload.musicRoot || '/volume1/music',
-      DOCKER_DATA: payload.dockerData || '/volume1/docker',
+      MUSIC_ROOT: musicRoot,
+      DOCKER_DATA: dockerData,
       BASE_URL: payload.domain ? `https://${payload.domain}` : '',
       LZ_USER: payload.listenBrainzUser || currentEnv.LZ_USER || '',
       LZ_TOKEN: payload.listenBrainzToken || currentEnv.LZ_TOKEN || '',
@@ -81,10 +91,10 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
     // 1. Create required subfolders (best-effort: path may be read-only inside the
     //    container if it lives under HOST_HOME which is mounted :ro for browsing).
     //    The subdirs will also be created by the ingestion containers on first start.
-    const musicRoot = envData.MUSIC_ROOT;
+    const targetMusic = envData.MUSIC_ROOT;
     const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
     for (const sub of subdirs) {
-      const p = path.join(musicRoot, sub);
+      const p = path.join(targetMusic, sub);
       if (!fs.existsSync(p)) {
         try { fs.mkdirSync(p, { recursive: true }); } catch { /* read-only or missing — ok */ }
       }

@@ -16,6 +16,7 @@ export interface ContainerInfo {
 export interface AppStatus {
   app: string;
   version: string;
+  platform?: string;
   isConfigured: boolean;
   dockerAvailable: boolean;
   musicRoot: string;

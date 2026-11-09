@@ -62,13 +62,22 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     } catch {}
   }
 
+  const isAlienPath = (p?: string) =>
+    process.platform === 'linux' && p && (p.startsWith('/Users/') || /^[A-Za-z]:[\\/]/.test(p));
+
+  const safeMusicRoot = !isAlienPath(currentEnv.MUSIC_ROOT) ? currentEnv.MUSIC_ROOT : '';
+  const safeDockerData = !isAlienPath(currentEnv.DOCKER_DATA) ? currentEnv.DOCKER_DATA : '';
+  const safePuid = (process.platform === 'linux' && currentEnv.PUID === '501') ? '1000' : currentEnv.PUID;
+  const safePgid = (process.platform === 'linux' && currentEnv.PGID === '20') ? '10' : currentEnv.PGID;
+
   res.json({
     app: 'Hostify Appliance',
     version: '1.0.0',
+    platform: process.platform,
     isConfigured,
     dockerAvailable: dockerClient.isAvailable(),
-    musicRoot: currentEnv.MUSIC_ROOT || defaultMusic,
-    dockerData: currentEnv.DOCKER_DATA || defaultDocker,
+    musicRoot: safeMusicRoot || defaultMusic,
+    dockerData: safeDockerData || defaultDocker,
     hostifyPort: currentEnv.HOSTIFY_PORT || '3500',
     navidromePort: currentEnv.NAVIDROME_PORT || '4533',
     feishinPort: currentEnv.FEISHIN_PORT || '9188',
@@ -85,8 +94,8 @@ systemRouter.get('/status', (_req: Request, res: Response) => {
     hostIp: getHostIp(_req.headers.host),
     localHostname: getLocalHostname(),
     enableAvahi: currentEnv.ENABLE_AVAHI !== 'false',
-    detectedPuid: currentEnv.PUID || String(detectedPuid),
-    detectedPgid: currentEnv.PGID || String(detectedPgid),
+    detectedPuid: safePuid || String(detectedPuid),
+    detectedPgid: safePgid || String(detectedPgid),
     detectedTz: currentEnv.TZ || detectedTz,
     tailscaleDetected: ts.detected,
     tailscaleIp: ts.ip,

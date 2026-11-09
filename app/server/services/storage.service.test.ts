@@ -92,4 +92,10 @@ describe('Storage Service (storage.service.ts)', () => {
       createDirectory(tmpDir, '   ');
     }, /Nombre de carpeta inválido/);
   });
+
+  test('browseDirectory ignores alien Windows drive paths on POSIX systems', () => {
+    const result = browseDirectory('C:\\music\\rock');
+    assert.notEqual(result.currentPath, 'C:\\music\\rock');
+    assert.ok(Array.isArray(result.breadcrumbs));
+  });
 });
