@@ -51,7 +51,8 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       MUSIC_ROOT: payload.musicRoot || '/volume1/music',
       DOCKER_DATA: payload.dockerData || '/volume1/docker',
       BASE_URL: payload.domain ? `https://${payload.domain}` : '',
-      LZ_USER: payload.listenBrainzUser || '',
+      LZ_USER: payload.listenBrainzUser || currentEnv.LZ_USER || '',
+      LZ_TOKEN: payload.listenBrainzToken || currentEnv.LZ_TOKEN || '',
       SLSKD_USERNAME: (currentEnv.SLSKD_USERNAME && currentEnv.SLSKD_USERNAME !== 'hostify_user')
         ? currentEnv.SLSKD_USERNAME
         : (payload.slskdUser || `hostify_${crypto.randomBytes(4).toString('hex')}`),
