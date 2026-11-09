@@ -85,7 +85,6 @@ services:
     image: deluan/navidrome:latest
     container_name: hostify-navidrome
     restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-10}"
     # Fully isolated within hostify-net: all external access routes through Hostify Gateway (:3500)
     expose:
       - "4533"
@@ -98,6 +97,8 @@ services:
       - ND_ENABLESHARING=true
       - ND_REVERSEPROXYUSERHEADER=${REVERSE_PROXY_USER_HEADER:-Remote-User}
       - ND_REVERSEPROXYWHITELIST=${REVERSE_PROXY_WHITELIST:-0.0.0.0/0}
+      - ND_EXTAUTH_USERHEADER=${REVERSE_PROXY_USER_HEADER:-Remote-User}
+      - ND_EXTAUTH_TRUSTEDSOURCES=${REVERSE_PROXY_WHITELIST:-0.0.0.0/0}
     volumes:
       - ${DOCKER_DATA:-/volume1/docker}/navidrome/data:/data
       # Recursive ingestion: Navidrome reads all subfolders (personal, explo, slskd, torrents)
@@ -234,7 +235,6 @@ services:
     image: slskd/slskd:latest
     container_name: hostify-slskd
     restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-10}"
     # Web UI isolated to hostify-net; peer transfer port remains open for P2P network traffic
     expose:
       - "5030"
@@ -242,6 +242,8 @@ services:
     ports:
       - "50300:50300"
     environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-10}
       # Disable Web UI login for direct access from Hostify dashboard
       - SLSKD_NO_AUTH=true
       - SLSKD_REMOTE_CONFIGURATION=true
