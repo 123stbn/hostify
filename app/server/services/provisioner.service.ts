@@ -280,6 +280,13 @@ window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
     }
 
     configureBeetsYaml(path.join(beetsConfigDir, 'config.yaml'));
+
+    // 5. Multi-Scrobbler directory permissions (ensures writeable permissions for distroless user and host UID)
+    const msConfigDir = path.join(dockerData, 'multi-scrobbler', 'config');
+    if (!fs.existsSync(msConfigDir)) {
+      try { fs.mkdirSync(msConfigDir, { recursive: true }); } catch {}
+    }
+    try { fs.chmodSync(msConfigDir, 0o777); } catch {}
   } catch (err: any) {
     console.error('Error auto-configurando qbittorrent/prowlarr/lidarr/feishin/beets:', err.message);
   }
