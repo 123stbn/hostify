@@ -302,3 +302,41 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   runCompose(0);
   return true;
 }
+
+/**
+ * Recreate and restart a single service using docker compose --force-recreate
+ */
+export function recreateSingleService(serviceName: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
+    if (!fs.existsSync(composePath)) return resolve(false);
+
+    const cmdArgs = [
+      'compose',
+      '--env-file', ENV_FILE_PATH,
+      '-p', 'hostify',
+      '-f', composePath,
+    ];
+
+    const overridePath = path.join(PROJECT_DIR, 'docker-compose.override.yml');
+    if (fs.existsSync(overridePath)) {
+      cmdArgs.push('-f', overridePath);
+    }
+
+    cmdArgs.push('up', '-d', '--force-recreate', serviceName);
+
+    const proc = spawn('docker', cmdArgs, {
+      cwd: PROJECT_DIR,
+      env: { ...process.env, ...parseEnv(ENV_FILE_PATH) },
+    });
+
+    proc.on('close', (code) => {
+      joinHostifyNetwork();
+      resolve(code === 0);
+    });
+
+    proc.on('error', () => {
+      resolve(false);
+    });
+  });
+}

@@ -184,6 +184,15 @@ export class DockerClient {
     await this.request('POST', `/v1.43/containers/${containerNameOrId}/${action}`);
   }
 
+  async removeContainer(containerNameOrId: string): Promise<void> {
+    if (!this.checkSocket()) return;
+    try {
+      await this.request('DELETE', `/v1.43/containers/${containerNameOrId}?force=true`);
+    } catch (err: any) {
+      console.warn(`Could not remove container ${containerNameOrId}:`, err.message);
+    }
+  }
+
   async getContainerLogs(containerNameOrId: string, lines: number = 100): Promise<string> {
     if (!this.checkSocket()) {
       return `Docker Engine está apagado. Inicie Colima o Docker Desktop para consultar registros de ${containerNameOrId}.`;
