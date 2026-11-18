@@ -143,6 +143,7 @@ services:
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
       - BASE_URL=http://localhost:3500/tools/scrobbler
+      - ADMIN_SETUP_PW=${NAVIDROME_ADMIN_PASSWORD:-}
       # ListenBrainz - Client
       - LZ_USER=${LZ_USER:-}
       - LZ_TOKEN=${LZ_TOKEN:-}
