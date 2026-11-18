@@ -135,7 +135,7 @@ services:
     image: foxxmd/multi-scrobbler:latest
     container_name: hostify-multi-scrobbler
     restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-10}"
+    user: "0:0"
     expose:
       - "9078"
     environment:
