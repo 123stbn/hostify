@@ -8,6 +8,7 @@ import {
   slskdProxyMiddleware,
   slskdApiProxyMiddleware,
   slskdHubProxyMiddleware,
+  droppedneedleAutoAuthMiddleware,
   droppedneedleProxyMiddleware,
   scrobblerProxyMiddleware,
   beetsProxyMiddleware
@@ -56,6 +57,7 @@ app.use(feishinProxyMiddleware);
 app.use(slskdProxyMiddleware);
 app.use(slskdApiProxyMiddleware);
 app.use(slskdHubProxyMiddleware);
+app.use(droppedneedleAutoAuthMiddleware);
 app.use(droppedneedleProxyMiddleware);
 app.use(scrobblerProxyMiddleware);
 app.use(beetsProxyMiddleware);

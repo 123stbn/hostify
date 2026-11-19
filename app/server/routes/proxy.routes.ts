@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import fs from 'node:fs';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
+import { getDroppedNeedleSessionCookie, invalidateDroppedNeedleSessionCookie } from '../services/provisioner.service.js';
 
 // Helper to resolve internal container DNS or localhost
 export function resolveServiceTarget(serviceName: string, defaultPort: number, hostDevPort?: number): string {
@@ -215,6 +216,37 @@ export const slskdHubProxyMiddleware = createProxyMiddleware({
   ws: true
 });
 
+// Auto-authenticate browser sessions visiting DroppedNeedle through Hostify gateway
+export async function droppedneedleAutoAuthMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!req.path.startsWith('/tools/discover')) {
+    next();
+    return;
+  }
+
+  const isHtmlEntry = req.method === 'GET'
+    && (req.headers.accept || '').includes('text/html')
+    && !req.path.startsWith('/tools/discover/login');
+  const isApiMissingCookie = req.path.startsWith('/tools/discover/api/v3/')
+    && !req.path.includes('/auth/')
+    && !(req.headers.cookie || '').includes('droppedneedle_sid=');
+
+  if (isHtmlEntry || isApiMissingCookie) {
+    const sid = await getDroppedNeedleSessionCookie();
+    if (sid) {
+      if (isHtmlEntry) {
+        res.append('Set-Cookie', `droppedneedle_sid=${sid}; HttpOnly; SameSite=Lax; Path=/tools/discover/api/v3; Max-Age=2592000`);
+      }
+      if (isApiMissingCookie) {
+        req.headers.cookie = req.headers.cookie
+          ? `${req.headers.cookie}; droppedneedle_sid=${sid}`
+          : `droppedneedle_sid=${sid}`;
+      }
+    }
+  }
+
+  next();
+}
+
 // DroppedNeedle music discovery, catalog tracking & requests proxy (preserves /tools/discover BASE_PATH)
 export const droppedneedleProxyMiddleware = createProxyMiddleware({
   pathFilter: '/tools/discover/**',
@@ -231,6 +263,11 @@ export const droppedneedleProxyMiddleware = createProxyMiddleware({
         const ref = String(proxyReq.getHeader('referer'));
         const idx = ref.indexOf('/tools/discover');
         proxyReq.setHeader('referer', idx !== -1 ? `${target}${ref.slice(idx)}` : `${target}/tools/discover/`);
+      }
+    },
+    proxyRes: (proxyRes, req) => {
+      if (proxyRes.statusCode === 401 && !(req.url || '').includes('/auth/')) {
+        invalidateDroppedNeedleSessionCookie();
       }
     }
   }

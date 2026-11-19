@@ -242,6 +242,66 @@ export interface DroppedNeedleSetupResult {
   reason?: string;
 }
 
+let cachedDnSession: { value: string; obtainedAt: number } | null = null;
+let inFlightDnSession: Promise<string | null> | null = null;
+const DN_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
+
+export function invalidateDroppedNeedleSessionCookie(): void {
+  cachedDnSession = null;
+}
+
+/**
+ * Obtain and cache a valid droppedneedle_sid session cookie for passwordless reverse-proxy access
+ */
+export async function getDroppedNeedleSessionCookie(): Promise<string | null> {
+  if (cachedDnSession && (Date.now() - cachedDnSession.obtainedAt) < DN_SESSION_TTL_MS) {
+    return cachedDnSession.value;
+  }
+  if (inFlightDnSession) return inFlightDnSession;
+
+  inFlightDnSession = (async () => {
+    try {
+      const env = parseEnv(ENV_FILE_PATH);
+      const adminUser = (env.NAVIDROME_ADMIN_USER || '').trim();
+      const adminPass = env.NAVIDROME_ADMIN_PASSWORD || '';
+      if (!adminUser || !adminPass) return null;
+
+      const apiBase = `${resolveServiceTarget('droppedneedle', 8688)}/tools/discover/api/v3`;
+      const loginRes = await fetch(`${apiBase}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUser,
+          password: adminPass,
+          transport: 'cookie',
+        }),
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => null);
+
+      if (!loginRes || !loginRes.ok) return null;
+
+      const setCookies: string[] = typeof (loginRes.headers as any).getSetCookie === 'function'
+        ? (loginRes.headers as any).getSetCookie()
+        : [loginRes.headers.get('set-cookie') || ''];
+
+      for (const raw of setCookies) {
+        const match = raw.match(/(?:^|,\s*)droppedneedle_sid=([^;]+)/i);
+        if (match && match[1]) {
+          cachedDnSession = { value: match[1], obtainedAt: Date.now() };
+          return match[1];
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      inFlightDnSession = null;
+    }
+  })();
+
+  return inFlightDnSession;
+}
+
 /**
  * Auto-provision DroppedNeedle admin user, Slskd client, library roots, Navidrome & ListenBrainz
  */
