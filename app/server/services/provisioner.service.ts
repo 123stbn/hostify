@@ -488,37 +488,57 @@ export async function ensureDroppedNeedleSetup(retry = 0): Promise<DroppedNeedle
     const lzToken = (env.LZ_TOKEN || '').trim();
     if (lzToken) {
       try {
-        let lzUser = (env.LZ_USER || '').trim();
-        if (!lzUser) {
-          const valRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
-            headers: { Authorization: `Token ${lzToken}` },
-            signal: AbortSignal.timeout(4000),
-          }).catch(() => null);
-          if (valRes && valRes.ok) {
-            const valData = (await valRes.json()) as { valid?: boolean; user_name?: string };
-            if (valData.valid && valData.user_name) {
-              lzUser = valData.user_name;
-              env.LZ_USER = lzUser;
-              writeEnv(ENV_FILE_PATH, env);
+        const existingConnRes = await fetch(`${apiBase}/me/connections`, {
+          headers: authHeaders,
+          signal: AbortSignal.timeout(4000),
+        }).catch(() => null);
+        const existingConnData = existingConnRes && existingConnRes.ok
+          ? ((await existingConnRes.json()) as { connections?: Array<{ service?: string; provider?: string }> })
+          : null;
+        const alreadyLinked = Boolean(
+          existingConnData?.connections?.some(c => (c.service || c.provider || '').toLowerCase() === 'listenbrainz')
+        );
+
+        if (!alreadyLinked) {
+          let lzUser = (env.LZ_USER || '').trim();
+          if (!lzUser) {
+            const valRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
+              headers: { Authorization: `Token ${lzToken}` },
+              signal: AbortSignal.timeout(15000),
+            }).catch(() => null);
+            if (valRes && valRes.ok) {
+              const valData = (await valRes.json()) as { valid?: boolean; user_name?: string };
+              if (valData.valid && valData.user_name) {
+                lzUser = valData.user_name;
+                env.LZ_USER = lzUser;
+                writeEnv(ENV_FILE_PATH, env);
+              }
             }
           }
-        }
 
-        await fetch(`${apiBase}/settings/listenbrainz`, {
-          method: 'PUT',
-          headers: authHeaders,
-          body: JSON.stringify({ reads_enabled: true }),
-          signal: AbortSignal.timeout(4000),
-        });
-
-        if (lzUser) {
-          await fetch(`${apiBase}/me/connections/listenbrainz`, {
+          await fetch(`${apiBase}/settings/listenbrainz`, {
             method: 'PUT',
             headers: authHeaders,
-            body: JSON.stringify({ username: lzUser, user_token: lzToken }),
-            signal: AbortSignal.timeout(5000),
+            body: JSON.stringify({ reads_enabled: true }),
+            signal: AbortSignal.timeout(4000),
           });
-          console.log(`[Hostify Provisioner] DroppedNeedle linked with ListenBrainz (${lzUser}).`);
+
+          if (lzUser) {
+            const linkRes = await fetch(`${apiBase}/me/connections/listenbrainz`, {
+              method: 'PUT',
+              headers: authHeaders,
+              body: JSON.stringify({ username: lzUser, user_token: lzToken }),
+              signal: AbortSignal.timeout(15000),
+            });
+            if (linkRes.ok) {
+              console.log(`[Hostify Provisioner] DroppedNeedle linked with ListenBrainz (${lzUser}).`);
+            } else {
+              const errText = await linkRes.text().catch(() => '');
+              console.warn(`[Hostify Provisioner] DroppedNeedle ListenBrainz link returned ${linkRes.status}: ${errText}`);
+            }
+          } else {
+            console.warn('[Hostify Provisioner] Could not resolve ListenBrainz username (api.listenbrainz.org timed out or rejected token).');
+          }
         }
       } catch (err: any) {
         console.warn('[Hostify Provisioner] DroppedNeedle ListenBrainz config failed:', err?.message || err);
