@@ -220,7 +220,20 @@ export const droppedneedleProxyMiddleware = createProxyMiddleware({
   pathFilter: '/tools/discover/**',
   router: () => resolveServiceTarget('droppedneedle', 8688),
   changeOrigin: true,
-  ws: true
+  ws: true,
+  on: {
+    proxyReq: (proxyReq) => {
+      const target = resolveServiceTarget('droppedneedle', 8688);
+      if (proxyReq.getHeader('origin')) {
+        proxyReq.setHeader('origin', target);
+      }
+      if (proxyReq.getHeader('referer')) {
+        const ref = String(proxyReq.getHeader('referer'));
+        const idx = ref.indexOf('/tools/discover');
+        proxyReq.setHeader('referer', idx !== -1 ? `${target}${ref.slice(idx)}` : `${target}/tools/discover/`);
+      }
+    }
+  }
 });
 
 // Multi-scrobbler web UI proxy (preserves /tools/scrobbler base path)

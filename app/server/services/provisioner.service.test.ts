@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { configureBeetsYaml, autoConfigureIngestionServices } from './provisioner.service.js';
+import { configureBeetsYaml, autoConfigureIngestionServices, ensureDroppedNeedleSetup } from './provisioner.service.js';
 
 describe('Provisioner Service (provisioner.service.ts)', () => {
   const tmpDir = path.join(os.tmpdir(), `hostify-provisioner-test-${Date.now()}`);
@@ -61,6 +61,18 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(content.includes('web:'));
     assert.ok(content.includes('port: 8337'));
     assert.ok(content.includes('fetch_for_asis: yes'));
+  });
+
+  test('ensureDroppedNeedleSetup skips safely when password is missing or unreachable without throwing', async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({ setup_required: true, code_required: true }), { status: 200 });
+    try {
+      const res = await ensureDroppedNeedleSetup(99);
+      assert.equal(res.success, false);
+      assert.equal(res.reason, 'code_required');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 });
 

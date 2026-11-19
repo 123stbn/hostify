@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { PROJECT_DIR } from '../utils/env.js';
+import { PROJECT_DIR, ENV_FILE_PATH, parseEnv, writeEnv } from '../utils/env.js';
+import { resolveServiceTarget } from '../routes/proxy.routes.js';
 
 /**
  * Provision directories and Zero-Config templates for DroppedNeedle, Feishin, Beets, and Multi-Scrobbler
@@ -234,4 +235,242 @@ scrub:
 export function configureBeetsYaml(configPath: string): void {
   // Always write the clean canonical Hostify configuration from scratch
   fs.writeFileSync(configPath, BEETS_CONFIG_YAML, 'utf-8');
+}
+
+export interface DroppedNeedleSetupResult {
+  success: boolean;
+  reason?: string;
+}
+
+/**
+ * Auto-provision DroppedNeedle admin user, Slskd client, library roots, Navidrome & ListenBrainz
+ */
+export async function ensureDroppedNeedleSetup(retry = 0): Promise<DroppedNeedleSetupResult> {
+  const maxRetries = 12;
+  const apiBase = `${resolveServiceTarget('droppedneedle', 8688)}/tools/discover/api/v3`;
+
+  try {
+    const statusRes = await fetch(`${apiBase}/auth/setup/status`, {
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
+
+    if (!statusRes || !statusRes.ok) {
+      if (retry < maxRetries) {
+        setTimeout(() => ensureDroppedNeedleSetup(retry + 1), 3000);
+      }
+      return { success: false, reason: 'unreachable' };
+    }
+
+    const setupStatus = (await statusRes.json()) as { setup_required?: boolean; code_required?: boolean };
+    if (setupStatus.code_required) {
+      return { success: false, reason: 'code_required' };
+    }
+
+    const env = parseEnv(ENV_FILE_PATH);
+    const adminUser = (env.NAVIDROME_ADMIN_USER || '').trim();
+    const adminPass = env.NAVIDROME_ADMIN_PASSWORD || '';
+    if (!adminUser || !adminPass) {
+      return { success: false, reason: 'missing_credentials' };
+    }
+
+    let token: string | null = null;
+
+    if (setupStatus.setup_required) {
+      if (adminUser.length < 3 || adminPass.length < 12) {
+        console.warn('[Hostify Provisioner] DroppedNeedle auto-admin skipped: password must be at least 12 characters (and username 3+ chars).');
+        return { success: false, reason: 'password_too_short' };
+      }
+
+      const setupRes = await fetch(`${apiBase}/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUser,
+          password: adminPass,
+          display_name: adminUser,
+          transport: 'bearer',
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!setupRes.ok) {
+        const errBody = await setupRes.text().catch(() => '');
+        console.warn(`[Hostify Provisioner] DroppedNeedle setup failed (${setupRes.status}): ${errBody}`);
+        return { success: false, reason: 'setup_failed' };
+      }
+
+      const setupData = (await setupRes.json()) as { token?: string };
+      token = setupData.token || null;
+      console.log(`[Hostify Provisioner] DroppedNeedle admin '${adminUser}' provisioned automatically.`);
+    } else {
+      const loginRes = await fetch(`${apiBase}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUser,
+          password: adminPass,
+          transport: 'bearer',
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!loginRes.ok) {
+        return { success: false, reason: 'login_failed' };
+      }
+
+      const loginData = (await loginRes.json()) as { token?: string };
+      token = loginData.token || null;
+    }
+
+    if (!token) {
+      return { success: false, reason: 'no_token' };
+    }
+
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+
+    // 1. Configure Slskd download client
+    try {
+      const dlRes = await fetch(`${apiBase}/settings/download-client/config`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (dlRes.ok) {
+        const dlCfg = (await dlRes.json()) as Record<string, any>;
+        const targetUrl = 'http://hostify-slskd:5030';
+        const targetKey = env.SLSKD_API_KEY || 'hostify_secret_key';
+        if (!dlCfg.enabled || dlCfg.url !== targetUrl) {
+          await fetch(`${apiBase}/settings/download-client/config`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              ...dlCfg,
+              enabled: true,
+              url: targetUrl,
+              api_key: targetKey,
+              downloads_subpath: dlCfg.downloads_subpath || 'slskd',
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle linked with Slskd successfully.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle Slskd config failed:', err?.message || err);
+    }
+
+    // 2. Configure Library roots (/data/discover & /data/personal)
+    try {
+      const libRes = await fetch(`${apiBase}/settings/library`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (libRes.ok) {
+        const libData = (await libRes.json()) as Record<string, any>;
+        if (!Array.isArray(libData.library_roots) || libData.library_roots.length === 0) {
+          await fetch(`${apiBase}/settings/library`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              expected_policy_revision: libData.policy_revision,
+              settings: {
+                enabled: libData.enabled ?? true,
+                acoustid_api_key: libData.acoustid_api_key || '',
+                staging_path: libData.staging_path || '',
+                naming_script: libData.naming_script,
+                library_roots: [
+                  { id: 'discover', label: 'DroppedNeedle Discover', path: '/data/discover', policy: 'automatic', rules: [] },
+                  { id: 'personal', label: 'Personal Collection', path: '/data/personal', policy: 'automatic', rules: [] },
+                ],
+              },
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle library roots (/data/discover, /data/personal) configured.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle library config failed:', err?.message || err);
+    }
+
+    // 3. Configure Navidrome integration
+    try {
+      const naviRes = await fetch(`${apiBase}/settings/navidrome`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (naviRes.ok) {
+        const naviCfg = (await naviRes.json()) as Record<string, any>;
+        const targetNaviUrl = `http://hostify-navidrome:${env.NAVIDROME_PORT || 4533}`;
+        if (!naviCfg.enabled || naviCfg.navidrome_url !== targetNaviUrl || naviCfg.username !== adminUser) {
+          await fetch(`${apiBase}/settings/navidrome`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              ...naviCfg,
+              enabled: true,
+              navidrome_url: targetNaviUrl,
+              username: adminUser,
+              password: adminPass,
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle linked with Navidrome successfully.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle Navidrome config failed:', err?.message || err);
+    }
+
+    // 4. Configure ListenBrainz connection when token is present
+    const lzToken = (env.LZ_TOKEN || '').trim();
+    if (lzToken) {
+      try {
+        let lzUser = (env.LZ_USER || '').trim();
+        if (!lzUser) {
+          const valRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
+            headers: { Authorization: `Token ${lzToken}` },
+            signal: AbortSignal.timeout(4000),
+          }).catch(() => null);
+          if (valRes && valRes.ok) {
+            const valData = (await valRes.json()) as { valid?: boolean; user_name?: string };
+            if (valData.valid && valData.user_name) {
+              lzUser = valData.user_name;
+              env.LZ_USER = lzUser;
+              writeEnv(ENV_FILE_PATH, env);
+            }
+          }
+        }
+
+        await fetch(`${apiBase}/settings/listenbrainz`, {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({ reads_enabled: true }),
+          signal: AbortSignal.timeout(4000),
+        });
+
+        if (lzUser) {
+          await fetch(`${apiBase}/me/connections/listenbrainz`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({ username: lzUser, user_token: lzToken }),
+            signal: AbortSignal.timeout(5000),
+          });
+          console.log(`[Hostify Provisioner] DroppedNeedle linked with ListenBrainz (${lzUser}).`);
+        }
+      } catch (err: any) {
+        console.warn('[Hostify Provisioner] DroppedNeedle ListenBrainz config failed:', err?.message || err);
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[Hostify Provisioner] Error in ensureDroppedNeedleSetup:', err?.message || err);
+    if (retry < maxRetries) {
+      setTimeout(() => ensureDroppedNeedleSetup(retry + 1), 4000);
+    }
+    return { success: false, reason: 'exception' };
+  }
 }

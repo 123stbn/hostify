@@ -4,6 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { DeploymentState } from '../types/index.js';
 import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv, writeEnv } from '../utils/env.js';
 import { dockerClient } from './docker.service.js';
+import { ensureDroppedNeedleSetup } from './provisioner.service.js';
 import { ensureNavidromeAdmin, triggerNavidromeScan, NavidromeCredentials } from './subsonic.service.js';
 
 let deploymentState: DeploymentState = {
@@ -199,6 +200,8 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
         deploymentState.finishedAt = new Date().toISOString();
         deploymentState.logs.push(`[${new Date().toLocaleTimeString()}] ✅ ¡Despliegue completado con éxito! Todos los servicios están activos.`);
 
+        // Provision DroppedNeedle admin, Slskd, Library, Navidrome & ListenBrainz
+        ensureDroppedNeedleSetup(0).catch(() => {});
         // Align Navidrome's admin account with the credentials chosen in the wizard
         ensureNavidromeAdmin(previousNavidromeCreds).catch((err) => {
           console.warn('[Hostify Navidrome] Admin sync failed:', err?.message || err);

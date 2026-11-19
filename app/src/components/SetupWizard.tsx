@@ -428,12 +428,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     }
 
     if (currentStep === 3) {
-      if (!navidromeAdminUser.trim()) {
-        setErrorMsg('Por favor especifica un nombre de usuario administrador.');
+      if (navidromeAdminUser.trim().length < 3) {
+        setErrorMsg(isEn ? 'Admin username must be at least 3 characters.' : 'El usuario administrador debe tener al menos 3 caracteres.');
         return;
       }
-      if (!navidromeAdminPassword.trim()) {
-        setErrorMsg('Por favor especifica una contraseña.');
+      if (navidromeAdminPassword.trim().length < 12) {
+        setErrorMsg(isEn ? 'Password must be at least 12 characters so all services (including DroppedNeedle) can be auto-provisioned.' : 'La contraseña debe tener al menos 12 caracteres para auto-aprovisionar todos los servicios (incluido DroppedNeedle).');
         return;
       }
       if (enableListenBrainz && !listenBrainzToken.trim()) {
@@ -927,8 +927,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                   className="form-input"
                   value={navidromeAdminPassword}
                   onChange={e => setNavidromeAdminPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                 />
+                <p className="input-hint" style={{ marginTop: '4px', fontSize: '0.72rem' }}>
+                  {isEn ? 'Minimum 12 characters (shared across Navidrome, Scrobbler & DroppedNeedle).' : 'Mínimo 12 caracteres (compartida con Navidrome, Scrobbler y DroppedNeedle).'}
+                </p>
               </div>
             </div>
 

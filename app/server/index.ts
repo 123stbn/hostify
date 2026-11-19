@@ -13,7 +13,7 @@ import {
   beetsProxyMiddleware
 } from './routes/proxy.routes.js';
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
-import { autoConfigureIngestionServices } from './services/provisioner.service.js';
+import { autoConfigureIngestionServices, ensureDroppedNeedleSetup } from './services/provisioner.service.js';
 import { ensureNavidromeAdmin, previousNavidromeCandidates } from './services/subsonic.service.js';
 import { joinHostifyNetwork } from './services/compose.service.js';
 
@@ -119,6 +119,7 @@ async function startServer() {
   const startupEnv = parseEnv(ENV_FILE_PATH);
   if (startupEnv.DOCKER_DATA && startupEnv.MUSIC_ROOT) {
     autoConfigureIngestionServices(startupEnv.DOCKER_DATA, startupEnv.MUSIC_ROOT, startupEnv);
+    ensureDroppedNeedleSetup(0).catch(() => {});
   }
 
   // Align Navidrome admin credentials on startup if configured

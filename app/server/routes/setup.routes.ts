@@ -12,7 +12,7 @@ import {
 } from '../utils/env.js';
 import { dockerClient } from '../services/docker.service.js';
 import { generateProxySnippets } from '../services/network.service.js';
-import { autoConfigureIngestionServices } from '../services/provisioner.service.js';
+import { autoConfigureIngestionServices, ensureDroppedNeedleSetup } from '../services/provisioner.service.js';
 import { triggerDeploy } from '../services/compose.service.js';
 import { previousNavidromeCandidates } from '../services/subsonic.service.js';
 
@@ -172,7 +172,7 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
     env.LZ_TOKEN = token.trim();
     writeEnv(ENV_FILE_PATH, env);
 
-    // Restart multi-scrobbler to pick up new ListenBrainz credentials
+    // Restart multi-scrobbler to pick up new ListenBrainz credentials and sync DroppedNeedle
     const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
     const spawnEnv = { ...process.env, ...env };
     const proc = spawn('docker', ['compose', '--env-file', ENV_FILE_PATH, '-p', 'hostify', '-f', composePath, 'up', '-d', 'multi-scrobbler'], {
@@ -182,6 +182,7 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
     proc.on('close', (code) => {
       console.log(`[Hostify] ListenBrainz credentials updated. Containers restarted with code ${code}`);
     });
+    ensureDroppedNeedleSetup(0).catch(() => {});
 
     res.json({ success: true, message: 'Credenciales de ListenBrainz actualizadas y servicios sincronizados' });
   } catch (err: any) {
