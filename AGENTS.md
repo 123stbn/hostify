@@ -32,11 +32,10 @@
   ```text
   ${MUSIC_ROOT}/
   ├── personal/    <-- User-owned collections, CD/vinyl rips, manual uploads
-  ├── explo/       <-- Automated playlist curator downloads
-  ├── slskd/       <-- Soulseek P2P downloads
-  └── torrents/    <-- Completed BitTorrent downloads (Lidarr + qBittorrent)
+  ├── discover/    <-- Verified & organized imports from DroppedNeedle
+  └── slskd/       <-- Soulseek P2P downloads (SLSKD_DOWNLOADS_PATH)
   ```
-- **Incomplete / Scratch Isolation**: Temporary or in-progress downloads (e.g., active BitTorrent pieces in `${DOCKER_DATA}/qbittorrent/incomplete`) **must remain strictly outside** the `${MUSIC_ROOT}` scan path to prevent corrupting Navidrome's tag scanner and SQLite database.
+- **Incomplete / Scratch Isolation**: DroppedNeedle validates downloaded files before moving them into `${MUSIC_ROOT}/discover/` and mounts `${MUSIC_ROOT}` as `/data:rw` sharing the filesystem with `slskd` for atomic moves.
 
 ### 2.3 Remote Access & Network Topologies
 - **Tailscale Mesh VPN**: Optional zero-config sidecar container or host daemon integration for secure WireGuard mesh access with zero router port forwarding.
@@ -53,12 +52,9 @@
 | **Navidrome** | `hostify-navidrome` | `4533` | `4533` | OpenSubsonic Music Streaming Server |
 | **Feishin** | `hostify-feishin` | `9180` | `9182` | Modern Spotify-style Web Client |
 | **Beets** | `hostify-beets` | `8337` | `8337` | MusicBrainz Auto-Tagger & Cover Embedder |
+| **DroppedNeedle** | `hostify-droppedneedle` | `8688` | `8688` | Music Discovery, Missing Releases & 1-Click Requests |
 | **Slskd** | `hostify-slskd` | `5030` | `5030` | Soulseek P2P Download Daemon & Web UI |
-| **Explo** | `hostify-explo` | `7288` | `7288` | Smart Playlist & Curator Download Agent |
 | **Multi-Scrobbler** | `hostify-multi-scrobbler` | `9078` | `9078` | Scrobble aggregator (ListenBrainz/Last.fm) |
-| **Prowlarr** | `hostify-prowlarr` | `9696` | `9696` | BitTorrent Indexer Manager |
-| **Lidarr** | `hostify-lidarr` | `8686` | `8686` | Automated Music Discography Manager |
-| **qBittorrent** | `hostify-qbittorrent` | `8080` / `6881` | `8080` / `6881` | Torrent client with isolated buffer |
 
 > **Note on Feishin Port Collision**: On macOS hosts, port `9180` is often bound by local background software (e.g., Logitech G HUB `lghub_updater`). In development mode on host, Feishin's host port is explicitly remapped to `9182` in `docker-compose.override.yml` and routed via `resolveServiceTarget('feishin', 9180, 9182)`.
 

@@ -68,8 +68,6 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
         : (payload.slskdUser || `hostify_${crypto.randomBytes(4).toString('hex')}`),
       SLSKD_PASSWORD: currentEnv.SLSKD_PASSWORD || payload.slskdPass || crypto.randomBytes(8).toString('hex'),
       SLSKD_API_KEY: currentEnv.SLSKD_API_KEY || payload.slskdApiKey || crypto.randomBytes(16).toString('hex'),
-      LIDARR_API_KEY: payload.lidarrApiKey || currentEnv.LIDARR_API_KEY || crypto.randomBytes(16).toString('hex'),
-      PROWLARR_API_KEY: payload.prowlarrApiKey || currentEnv.PROWLARR_API_KEY || crypto.randomBytes(16).toString('hex'),
     };
 
     // Auto-resolve ListenBrainz username if only user token was provided
@@ -92,7 +90,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
     //    container if it lives under HOST_HOME which is mounted :ro for browsing).
     //    The subdirs will also be created by the ingestion containers on first start.
     const targetMusic = envData.MUSIC_ROOT;
-    const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
+    const subdirs = ['personal', 'discover', 'slskd'];
     for (const sub of subdirs) {
       const p = path.join(targetMusic, sub);
       if (!fs.existsSync(p)) {
@@ -100,7 +98,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
       }
     }
 
-    // 2. Pre-provision Zero-Config (no login) for qBittorrent, Prowlarr, and Lidarr
+    // 2. Pre-provision directories and templates for DroppedNeedle, Feishin, Beets, and Multi-Scrobbler
     autoConfigureIngestionServices(envData.DOCKER_DATA, envData.MUSIC_ROOT, envData);
 
     // 3. Persist .env (including synchronized API keys)
@@ -174,22 +172,10 @@ setupRouter.post('/settings/listenbrainz', async (req: Request, res: Response) =
     env.LZ_TOKEN = token.trim();
     writeEnv(ENV_FILE_PATH, env);
 
-    // Update Explo configuration if directory exists
-    const exploDir = path.join(env.DOCKER_DATA || '/volume1/docker', 'explo', 'config');
-    const exploEnv = path.join(exploDir, '.env');
-    if (fs.existsSync(exploEnv)) {
-      try {
-        let content = fs.readFileSync(exploEnv, 'utf-8');
-        content = content.replace(/^LISTENBRAINZ_USER=.*$/m, `LISTENBRAINZ_USER=${env.LZ_USER}`);
-        content = content.replace(/^LISTENBRAINZ_USER_TOKEN=.*$/m, `LISTENBRAINZ_USER_TOKEN=${env.LZ_TOKEN}`);
-        fs.writeFileSync(exploEnv, content, 'utf-8');
-      } catch {}
-    }
-
-    // Restart multi-scrobbler and explo to pick up new credentials
+    // Restart multi-scrobbler to pick up new ListenBrainz credentials
     const composePath = path.join(PROJECT_DIR, 'docker-compose.yml');
     const spawnEnv = { ...process.env, ...env };
-    const proc = spawn('docker', ['compose', '--env-file', ENV_FILE_PATH, '-p', 'hostify', '-f', composePath, 'up', '-d', 'multi-scrobbler', 'explo'], {
+    const proc = spawn('docker', ['compose', '--env-file', ENV_FILE_PATH, '-p', 'hostify', '-f', composePath, 'up', '-d', 'multi-scrobbler'], {
       cwd: PROJECT_DIR,
       env: spawnEnv,
     });

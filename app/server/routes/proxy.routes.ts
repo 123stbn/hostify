@@ -215,84 +215,10 @@ export const slskdHubProxyMiddleware = createProxyMiddleware({
   ws: true
 });
 
-// Explo curator web UI proxy (rewrites asset references so scripts load under /tools/explo/assets/)
-export const exploProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/explo/**',
-  router: () => resolveServiceTarget('explo', 7288),
-  pathRewrite: { '^/tools/explo': '' },
-  changeOrigin: true,
-  ws: true,
-  selfHandleResponse: true,
-  on: {
-    proxyRes: responseInterceptor(async (responseBuffer, proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] || '';
-      if (contentType.includes('text/html')) {
-        let html = responseBuffer.toString('utf8');
-        html = html.replace(/(src|href)="\/(assets\/[^"]+)"/g, '$1="/tools/explo/$2"');
-        return html;
-      }
-      if (contentType.includes('javascript')) {
-        let js = responseBuffer.toString('utf8');
-        js = js.replace(/"\/assets\//g, '"/tools/explo/assets/');
-        return js;
-      }
-      return responseBuffer;
-    })
-  }
-});
-
-// Explo UI API & SSE/Events proxy
-export const exploApiProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/api/ui/**',
-  router: () => resolveServiceTarget('explo', 7288),
-  changeOrigin: true,
-  ws: true
-});
-
-// qBittorrent web UI proxy (injects base href and normalizes Origin/Referer to avoid 401)
-export const qbittorrentProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/qbittorrent/**',
-  router: () => resolveServiceTarget('qbittorrent', 8080),
-  pathRewrite: { '^/tools/qbittorrent': '' },
-  changeOrigin: true,
-  ws: true,
-  selfHandleResponse: true,
-  on: {
-    proxyReq: (proxyReq, req) => {
-      const target = resolveServiceTarget('qbittorrent', 8080);
-      const hostOnly = target.replace(/^https?:\/\//, '');
-      proxyReq.setHeader('host', hostOnly);
-      proxyReq.setHeader('x-forwarded-host', (req.headers['host'] as string) || hostOnly);
-      // qBittorrent requires Origin and Referer to strictly match its internal Host to prevent 401 Unauthorized
-      proxyReq.setHeader('origin', target);
-      proxyReq.setHeader('referer', `${target}/`);
-    },
-    proxyRes: responseInterceptor(async (responseBuffer, proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] || '';
-      if (contentType.includes('text/html')) {
-        let html = responseBuffer.toString('utf8');
-        if (!html.includes('<base ')) {
-          html = html.replace('<head>', '<head>\n    <base href="/tools/qbittorrent/">');
-        }
-        return html;
-      }
-      return responseBuffer;
-    })
-  }
-});
-
-// Prowlarr indexer web UI proxy (preserves /tools/prowlarr UrlBase)
-export const prowlarrProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/prowlarr/**',
-  router: () => resolveServiceTarget('prowlarr', 9696),
-  changeOrigin: true,
-  ws: true
-});
-
-// Lidarr music manager web UI proxy (preserves /tools/lidarr UrlBase)
-export const lidarrProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/lidarr/**',
-  router: () => resolveServiceTarget('lidarr', 8686),
+// DroppedNeedle music discovery, catalog tracking & requests proxy (preserves /tools/discover BASE_PATH)
+export const droppedneedleProxyMiddleware = createProxyMiddleware({
+  pathFilter: '/tools/discover/**',
+  router: () => resolveServiceTarget('droppedneedle', 8688),
   changeOrigin: true,
   ws: true
 });

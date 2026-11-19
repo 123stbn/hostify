@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   Play, Square, RotateCw, ExternalLink, FileText,
   Globe, Radio, Music, DownloadCloud,
-  Server, Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
+  Layers, AlertTriangle, X, Copy, RefreshCw, Folder, Disc3,
   Laptop, Smartphone, Sparkles, Headphones, Eye, EyeOff,
   ChevronDown, ChevronUp, Maximize2, Pause, SkipForward, SkipBack,
   Volume2, VolumeX, Shuffle, Check, Compass, Tag, Terminal
@@ -168,12 +168,12 @@ function getFriendlyComponentInfo(name: string, fallbackDesc: string, isEn: bool
         : 'Fonoteca central: cataloga tus discos, lee etiquetas y transmite a tus reproductores.',
     };
   }
-  if (lower.includes('explo')) {
+  if (lower.includes('droppedneedle')) {
     return {
-      title: isEn ? 'Explo (Curator)' : 'Explo (Curador)',
+      title: 'DroppedNeedle',
       role: isEn
-        ? 'Learns your music tastes, builds weekly playlists, and commands smart song discovery.'
-        : 'Aprende de tus gustos, arma listas semanales y comanda la búsqueda de música afín.',
+        ? 'Music discovery, full artist discography tracker & 1-click requests via Soulseek.'
+        : 'Descubrimiento de música, seguimiento de discografías y peticiones en 1 clic vía Soulseek.',
     };
   }
   if (lower.includes('slskd')) {
@@ -182,30 +182,6 @@ function getFriendlyComponentInfo(name: string, fallbackDesc: string, isEn: bool
       role: isEn
         ? 'Community P2P discovery for rare collector vinyl rips, demos, and FLAC albums.'
         : 'Búsqueda comunitaria para conseguir vinilos ripeados, maquetas y rarezas melómanas.',
-    };
-  }
-  if (lower.includes('lidarr')) {
-    return {
-      title: 'Lidarr',
-      role: isEn
-        ? 'Discography organizer: tracks artists and downloads complete albums with official artwork.'
-        : 'Organizador de discografías: supervisa artistas y descarga álbumes con carátulas oficiales.',
-    };
-  }
-  if (lower.includes('prowlarr')) {
-    return {
-      title: 'Prowlarr',
-      role: isEn
-        ? 'Indexer and provider proxy managing catalog feeds for the discography organizer.'
-        : 'Rastreador de fuentes y coordinación de catálogos para el organizador.',
-    };
-  }
-  if (lower.includes('qbittorrent')) {
-    return {
-      title: 'qBittorrent',
-      role: isEn
-        ? 'Isolated download buffer: keeps scratch and temporary files outside your active library.'
-        : 'Búfer de descarga aislada: mantiene archivos temporales fuera de tu fonoteca hasta completarse.',
     };
   }
   if (lower.includes('scrobbler')) {
@@ -547,9 +523,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   const isFeishinRunning = containers.find(c => c.name.includes('feishin'))?.state === 'running';
   const isNavidromeRunning = containers.find(c => c.name.includes('navidrome'))?.state === 'running';
 
-  const exploContainer = containers.find(c => c.name.includes('explo'));
-  const isExploInstalled = !!exploContainer && exploContainer.state !== 'not_created';
-  const isExploRunning = exploContainer?.state === 'running';
+  const discoverContainer = containers.find(c => c.name.includes('droppedneedle'));
+  const isDiscoverInstalled = !!discoverContainer && discoverContainer.state !== 'not_created';
+  const isDiscoverRunning = discoverContainer?.state === 'running';
 
   const slskdContainer = containers.find(c => c.name.includes('slskd'));
   const isSlskdInstalled = !!slskdContainer && slskdContainer.state !== 'not_created';
@@ -563,10 +539,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     if (!c) return '/';
     if (c.name.includes('feishin')) return '/feishin/';
     if (c.name.includes('slskd')) return '/tools/slskd/';
-    if (c.name.includes('explo')) return '/tools/explo/';
-    if (c.name.includes('qbittorrent')) return '/tools/qbittorrent/';
-    if (c.name.includes('prowlarr')) return '/tools/prowlarr/';
-    if (c.name.includes('lidarr')) return '/tools/lidarr/';
+    if (c.name.includes('droppedneedle')) return '/tools/discover/';
     if (c.name.includes('scrobbler')) return '/tools/scrobbler/';
     if (c.name.includes('beets')) return '/tools/beets/';
     if (c.name.includes('navidrome')) return '/app/';
@@ -574,7 +547,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
   };
 
   const slskdUrl = '/tools/slskd/';
-  const exploUrl = '/tools/explo/';
+  const discoverUrl = '/tools/discover/';
 
   const openFeishinWindow = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -583,10 +556,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
     if (w) w.focus();
   };
 
-  const openExploWindow = (e?: React.MouseEvent) => {
+  const openDiscoverWindow = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-    if (!isExploRunning) return;
-    const w = window.open(exploUrl, 'hostify_explo');
+    if (!isDiscoverRunning) return;
+    const w = window.open(discoverUrl, 'hostify_droppedneedle');
     if (w) w.focus();
   };
 
@@ -856,20 +829,89 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                 <span className="breakdown-pill" title="/music/personal">
                   <strong>{storage?.folders?.personal?.fileCount ?? 0}</strong> {t('sourcePersonal')}
                 </span>
+                <span className="breakdown-pill" title="/music/discover">
+                  <strong>{storage?.folders?.discover?.fileCount ?? 0}</strong> {t('sourceDiscover')}
+                </span>
                 <span className="breakdown-pill" title="/music/slskd">
                   <strong>{storage?.folders?.slskd?.fileCount ?? 0}</strong> {t('sourceSlskd')}
                 </span>
-                <span className="breakdown-pill" title="/music/explo">
-                  <strong>{storage?.folders?.explo?.fileCount ?? 0}</strong> {t('sourceExplo')}
-                </span>
-                <span className="breakdown-pill" title="/music/torrents">
-                  <strong>{storage?.folders?.torrents?.fileCount ?? 0}</strong> {t('sourceTorrents')}
-                </span>
+                {storage?.folders?.explo?.exists && (storage?.folders?.explo?.fileCount ?? 0) > 0 && (
+                  <span className="breakdown-pill" title="/music/explo">
+                    <strong>{storage.folders.explo.fileCount}</strong> {t('sourceExplo')}
+                  </span>
+                )}
+                {storage?.folders?.torrents?.exists && (storage?.folders?.torrents?.fileCount ?? 0) > 0 && (
+                  <span className="breakdown-pill" title="/music/torrents">
+                    <strong>{storage.folders.torrents.fileCount}</strong> {t('sourceTorrents')}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Tarjeta 2: Slskd (Soulseek P2P) o Explo si Slskd no está instalado */}
-            {isSlskdInstalled ? (
+            {/* Tarjeta 2: DroppedNeedle (Descubrimiento y Catálogo) con acceso directo a Slskd */}
+            {isDiscoverInstalled ? (
+              <div className="curator-card">
+                <div className="curator-card-bg-glow" />
+                <div>
+                  <div className="library-stat-header">
+                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
+                      <Compass size={14} style={{ color: 'var(--accent-brass)' }} />
+                      <span>{t('discoverWidgetTitle')}</span>
+                    </span>
+                    <span className={`status-pill ${isDiscoverRunning ? 'online' : 'offline'}`}>
+                      <span className="status-dot"></span>
+                      <span>{isDiscoverRunning ? t('online') : t('offline')}</span>
+                    </span>
+                  </div>
+
+                  <p className="curator-desc">
+                    {t('discoverWidgetDesc')}
+                  </p>
+                </div>
+
+                <div className="curator-actions">
+                  {isDiscoverRunning ? (
+                    <a
+                      href={discoverUrl}
+                      target="hostify_droppedneedle"
+                      rel="noreferrer"
+                      onClick={openDiscoverWindow}
+                      className="btn btn-primary btn-sm"
+                      id="btn-open-discover"
+                    >
+                      <Compass size={13} />
+                      <span>{t('openDiscoverBtn')}</span>
+                      <ExternalLink size={11} style={{ opacity: 0.7 }} />
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleAction(discoverContainer?.name || 'hostify-droppedneedle', 'start')}
+                      disabled={!status?.dockerAvailable}
+                      id="btn-start-discover"
+                    >
+                      <Play size={12} />
+                      <span>{t('startDiscoverBtn')}</span>
+                    </button>
+                  )}
+
+                  {isSlskdRunning && (
+                    <a
+                      href={slskdUrl}
+                      target="hostify_slskd"
+                      rel="noreferrer"
+                      onClick={openSlskdWindow}
+                      className="btn btn-secondary btn-sm"
+                      id="btn-open-slskd"
+                    >
+                      <DownloadCloud size={12} />
+                      <span>Slskd P2P</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            ) : isSlskdInstalled ? (
               <div className="curator-card">
                 <div className="curator-card-bg-glow" />
                 <div>
@@ -913,54 +955,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                     >
                       <Play size={12} />
                       <span>{t('startSlskdBtn')}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : isExploInstalled ? (
-              <div className="curator-card">
-                <div className="curator-card-bg-glow" />
-                <div>
-                  <div className="library-stat-header">
-                    <span className="library-stat-title" style={{ color: 'var(--text-primary)' }}>
-                      <Sparkles size={14} style={{ color: 'var(--accent-brass)' }} />
-                      <span>{t('exploWidgetTitle')}</span>
-                    </span>
-                    <span className={`status-pill ${isExploRunning ? 'online' : 'offline'}`}>
-                      <span className="status-dot"></span>
-                      <span>{isExploRunning ? t('online') : t('offline')}</span>
-                    </span>
-                  </div>
-
-                  <p className="curator-desc">
-                    {t('exploWidgetDesc')}
-                  </p>
-                </div>
-
-                <div className="curator-actions">
-                  {isExploRunning ? (
-                    <a
-                      href={exploUrl}
-                      target="hostify_explo"
-                      rel="noreferrer"
-                      onClick={openExploWindow}
-                      className="btn btn-primary btn-sm"
-                      id="btn-open-explo"
-                    >
-                      <Compass size={13} />
-                      <span>{t('openExploBtn')}</span>
-                      <ExternalLink size={11} style={{ opacity: 0.7 }} />
-                    </a>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleAction(exploContainer?.name || 'hostify-explo', 'start')}
-                      disabled={!status?.dockerAvailable}
-                      id="btn-start-explo"
-                    >
-                      <Play size={12} />
-                      <span>{t('startExploBtn')}</span>
                     </button>
                   )}
                 </div>
@@ -1228,11 +1222,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                         {c.name.includes('navidrome') && <Radio size={18} />}
                         {c.name.includes('scrobbler') && <Disc3 size={18} />}
                         {c.name.includes('beets') && <Tag size={18} />}
+                        {c.name.includes('droppedneedle') && <Compass size={18} />}
                         {c.name.includes('slskd') && <DownloadCloud size={18} />}
-                        {c.name.includes('explo') && <Sparkles size={18} />}
-                        {c.name.includes('qbittorrent') && <Server size={18} />}
-                        {c.name.includes('prowlarr') && <Layers size={18} />}
-                        {c.name.includes('lidarr') && <Disc3 size={18} />}
                       </div>
 
                       <div>
@@ -1257,7 +1248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
                         {isRunning && (
                           <a
                             href={getContainerUrl(c)}
-                            target={c.name.includes('feishin') ? 'hostify_feishin_player' : c.name.includes('slskd') ? 'hostify_slskd' : c.name.includes('explo') ? 'hostify_explo' : `hostify_${c.name}`}
+                            target={c.name.includes('feishin') ? 'hostify_feishin_player' : c.name.includes('slskd') ? 'hostify_slskd' : c.name.includes('droppedneedle') ? 'hostify_droppedneedle' : `hostify_${c.name}`}
                             rel="noreferrer"
                             className="btn btn-secondary btn-sm"
                             title={t('openWebUI')}
@@ -1342,12 +1333,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               <div className="flat-row-info">
                 <Sparkles size={18} className="flat-icon" />
                 <div>
-                  <div className="flat-row-title">{t('folderExploTitle')}</div>
-                  <p className="flat-row-desc">{t('folderExploDesc')}</p>
+                  <div className="flat-row-title">{t('folderDiscoverTitle')}</div>
+                  <p className="flat-row-desc">{t('folderDiscoverDesc')}</p>
                 </div>
               </div>
               <span style={{ fontSize: '0.84rem', fontWeight: '600' }}>
-                {storage?.folders?.explo?.fileCount ?? 0} {t('tracksCount')}
+                {storage?.folders?.discover?.fileCount ?? 0} {t('tracksCount')}
               </span>
             </div>
 
@@ -1364,18 +1355,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ status, onRefreshStatus })
               </span>
             </div>
 
-            <div className="flat-row">
-              <div className="flat-row-info">
-                <Disc3 size={18} className="flat-icon" />
-                <div>
-                  <div className="flat-row-title">{t('folderTorrentsTitle')}</div>
-                  <p className="flat-row-desc">{t('folderTorrentsDesc')}</p>
+            {storage?.folders?.explo?.exists && (storage?.folders?.explo?.fileCount ?? 0) > 0 && (
+              <div className="flat-row">
+                <div className="flat-row-info">
+                  <Sparkles size={18} className="flat-icon" />
+                  <div>
+                    <div className="flat-row-title">/music/explo ({t('sourceExplo')})</div>
+                  </div>
                 </div>
+                <span style={{ fontSize: '0.84rem', fontWeight: '600' }}>
+                  {storage.folders.explo.fileCount} {t('tracksCount')}
+                </span>
               </div>
-              <span style={{ fontSize: '0.84rem', fontWeight: '600' }}>
-                {storage?.folders?.torrents?.fileCount ?? 0} {t('tracksCount')}
-              </span>
-            </div>
+            )}
+
+            {storage?.folders?.torrents?.exists && (storage?.folders?.torrents?.fileCount ?? 0) > 0 && (
+              <div className="flat-row">
+                <div className="flat-row-info">
+                  <Disc3 size={18} className="flat-icon" />
+                  <div>
+                    <div className="flat-row-title">/music/torrents ({t('sourceTorrents')})</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '0.84rem', fontWeight: '600' }}>
+                  {storage.folders.torrents.fileCount} {t('tracksCount')}
+                </span>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', paddingTop: '16px', borderTop: '1px solid var(--border-subtle)' }}>

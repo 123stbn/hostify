@@ -41,7 +41,7 @@ export function detectTailscale(): TailscaleStatus {
 }
 
 /**
- * Get complete list of hostnames and host IPs for AllowedHosts in Servarr (Prowlarr/Lidarr)
+ * Get complete list of hostnames and host IPs for trusted host/proxy configuration
  */
 export function getHostAllowedAddresses(): string[] {
   const hosts = new Set<string>([
@@ -50,8 +50,7 @@ export function getHostAllowedAddresses(): string[] {
     '127.0.0.1',
     'hostify.local',
     '*.local',
-    'hostify-prowlarr',
-    'hostify-lidarr',
+    'hostify-droppedneedle',
     'host.docker.internal',
     'host.colima.internal'
   ]);

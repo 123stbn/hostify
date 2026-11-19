@@ -88,11 +88,8 @@ export class DockerClient {
       { name: 'hostify-feishin', shortName: 'feishin', defaultPort: 9188, category: 'core', desc: 'Modern Web Player (Spotify Style / Hi-Res)' },
       { name: 'hostify-multi-scrobbler', shortName: 'multi-scrobbler', defaultPort: 9078, category: 'core', desc: 'Scrobbling & MusicBrainz Tags' },
       { name: 'hostify-beets', shortName: 'beets', defaultPort: 8337, category: 'core', desc: 'MusicBrainz Tagging & Artwork Embedder' },
-      { name: 'hostify-explo', shortName: 'explo', defaultPort: 7288, category: 'downloader', desc: 'Direct Web Audio Downloader & Curator' },
+      { name: 'hostify-droppedneedle', shortName: 'droppedneedle', defaultPort: 8688, category: 'downloader', desc: 'Music Discovery, Catalog Tracking & Requests' },
       { name: 'hostify-slskd', shortName: 'slskd', defaultPort: 5030, category: 'downloader', desc: 'Soulseek P2P Network (Hi-Fi)' },
-      { name: 'hostify-qbittorrent', shortName: 'qbittorrent', defaultPort: 8080, category: 'downloader', desc: 'BitTorrent Client with Safe Buffer' },
-      { name: 'hostify-prowlarr', shortName: 'prowlarr', defaultPort: 9696, category: 'downloader', desc: 'Torrent Indexer & Tracker Manager' },
-      { name: 'hostify-lidarr', shortName: 'lidarr', defaultPort: 8686, category: 'downloader', desc: 'Music Manager & Automation (*arr)' },
     ];
 
     if (!this.checkSocket()) {

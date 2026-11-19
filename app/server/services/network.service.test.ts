@@ -13,8 +13,7 @@ describe('Network Service (network.service.ts)', () => {
     assert.ok(Array.isArray(addresses));
     assert.ok(addresses.includes('localhost'));
     assert.ok(addresses.includes('127.0.0.1'));
-    assert.ok(addresses.includes('hostify-prowlarr'));
-    assert.ok(addresses.includes('hostify-lidarr'));
+    assert.ok(addresses.includes('hostify-droppedneedle'));
   });
 
   test('getHostIp returns a valid IPv4 string', () => {

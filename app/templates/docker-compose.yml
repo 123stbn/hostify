@@ -181,52 +181,28 @@ services:
       - hostify-net
 
   # ----------------------------------------------------------------------------
-  # INGESTION 1: DIRECT AUDIO DOWNLOADER & CURATOR (EXPLO)
+  # INGESTION 1: MUSIC DISCOVERY, CATALOG TRACKING & REQUESTS (DROPPEDNEEDLE)
   # ----------------------------------------------------------------------------
-  explo:
-    image: ghcr.io/lumepart/explo:latest
-    container_name: hostify-explo
+  droppedneedle:
+    image: droppedneedle/droppedneedle:latest
+    container_name: hostify-droppedneedle
     restart: unless-stopped
     expose:
-      - "7288"
+      - "8688"
     environment:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
+      - UMASK=002
       - TZ=${TZ:-America/Lima}
-      - WEB_UI=true
-      - WIZARD_COMPLETE=true
-      # ListenBrainz integration for automated weekly discovery
-      - DISCOVERY_SERVICE=listenbrainz
-      - LISTENBRAINZ_USER=${LZ_USER:-}
-      - LISTENBRAINZ_USER_TOKEN=${LZ_TOKEN:-}
-      - LISTENBRAINZ_DISCOVERY=playlist
-      - ENRICH_TRACK_METADATA=true
-      # Navidrome (OpenSubsonic) integration
-      - EXPLO_SYSTEM=subsonic
-      - SYSTEM_URL=http://hostify-navidrome:${NAVIDROME_PORT:-4533}
-      - SYSTEM_USERNAME=${NAVIDROME_ADMIN_USER:-}
-      - SYSTEM_PASSWORD=${NAVIDROME_ADMIN_PASSWORD:-}
-      # Automated Discovery Playlist Schedules (Zero-Config)
-      - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2
-      - WEEKLY_EXPLORATION_FLAGS=--playlist weekly-exploration
-      - WEEKLY_JAMS_SCHEDULE=30 00 * * 1
-      - WEEKLY_JAMS_FLAGS=--playlist weekly-jams
-      - DAILY_JAMS_SCHEDULE=15 01 * * *
-      - DAILY_JAMS_FLAGS=--playlist daily-jams
-      - ON_REPEAT_SCHEDULE=00 12 1 * *
-      - ON_REPEAT_FLAGS=--playlist on-repeat
-      # Download service chain in order of priority (Hi-Fi / Lossless)
-      - DOWNLOAD_SERVICES=slskd,lidarr
-      # SLSKD (Soulseek P2P) integration
-      - SLSKD_URL=http://hostify-slskd:5030
-      - SLSKD_API_KEY=${SLSKD_API_KEY:-hostify_secret_key}
-      # Lidarr (*arr) integration
-      - LIDARR_URL=http://hostify-lidarr:8686
-      - LIDARR_API_KEY=${LIDARR_API_KEY:-}
-      - WEB_ENV_PATH=/opt/explo/config/.env
+      - PORT=8688
+      - BASE_PATH=/tools/discover
+      - TRUSTED_PROXY_IPS=172.16.0.0/12,192.168.0.0/16,10.0.0.0/8,127.0.0.1/32
+      - SLSKD_DOWNLOADS_PATH=/data/slskd
     volumes:
-      - ${DOCKER_DATA:-/volume1/docker}/explo/config:/opt/explo/config
-      - ${MUSIC_ROOT:-/volume1/music}/explo:/data
+      - ${DOCKER_DATA:-/volume1/docker}/droppedneedle/config:/app/config
+      - droppedneedle_cache:/app/cache
+      - ${DOCKER_DATA:-/volume1/docker}/droppedneedle/plugins:/app/plugins
+      - ${MUSIC_ROOT:-/volume1/music}:/data:rw
     networks:
       - hostify-net
 
@@ -262,77 +238,8 @@ services:
     networks:
       - hostify-net
 
-  # ----------------------------------------------------------------------------
-  # INGESTION 3: BITTORRENT (QBITTORRENT) WITH BUFFER SEGREGATION
-  # ----------------------------------------------------------------------------
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    container_name: hostify-qbittorrent
-    restart: unless-stopped
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-10}
-      - TZ=${TZ:-America/Lima}
-      - WEBUI_PORT=8080
-      - TORRENTING_PORT=6881
-    # Web UI isolated to hostify-net; torrenting transfer ports remain open for peer transfers
-    expose:
-      - "8080"
-    ports:
-      - "6881:6881"
-      - "6881:6881/udp"
-    volumes:
-      - ${DOCKER_DATA:-/volume1/docker}/qbittorrent/config:/config
-      # Incomplete files buffer (Navidrome scanner ignores this folder):
-      - ${DOCKER_DATA:-/volume1/docker}/qbittorrent/incomplete:/downloads/incomplete
-      # Completed files (Navidrome indexes immediately):
-      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads/completed
-    networks:
-      - hostify-net
-
-  # ----------------------------------------------------------------------------
-  # TORRENT INDEXER & SEARCH: PROWLARR
-  # ----------------------------------------------------------------------------
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: hostify-prowlarr
-    restart: unless-stopped
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-10}
-      - TZ=${TZ:-America/Lima}
-      - PROWLARR__SERVER__URLBASE=/tools/prowlarr
-      - PROWLARR__AUTH__METHOD=Forms
-      - PROWLARR__AUTH__REQUIRED=DisabledForLocalAddresses
-    expose:
-      - "9696"
-    volumes:
-      - ${DOCKER_DATA:-/volume1/docker}/prowlarr:/config
-    networks:
-      - hostify-net
-
-  # ----------------------------------------------------------------------------
-  # MUSIC MANAGEMENT & AUTOMATION (*ARR): LIDARR
-  # ----------------------------------------------------------------------------
-  lidarr:
-    image: lscr.io/linuxserver/lidarr:latest
-    container_name: hostify-lidarr
-    restart: unless-stopped
-    environment:
-      - PUID=${PUID:-1000}
-      - PGID=${PGID:-10}
-      - TZ=${TZ:-America/Lima}
-      - LIDARR__SERVER__URLBASE=/tools/lidarr
-      - LIDARR__AUTH__METHOD=Forms
-      - LIDARR__AUTH__REQUIRED=DisabledForLocalAddresses
-    expose:
-      - "8686"
-    volumes:
-      - ${DOCKER_DATA:-/volume1/docker}/lidarr:/config
-      - ${MUSIC_ROOT:-/volume1/music}:/music
-      - ${MUSIC_ROOT:-/volume1/music}/torrents:/downloads/completed
-    networks:
-      - hostify-net
+volumes:
+  droppedneedle_cache:
 
 networks:
   hostify-net:

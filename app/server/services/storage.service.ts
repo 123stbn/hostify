@@ -60,10 +60,12 @@ export async function getStorageStatus() {
     ? musicRoot
     : (fs.existsSync('/music') ? '/music' : musicRoot);
 
-  const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
-  // Keep legacy inbox reporting only if folder physically exists on disk
-  if (fs.existsSync(path.join(effectiveMusicDir, 'inbox'))) {
-    subdirs.push('inbox');
+  const subdirs = ['personal', 'discover', 'slskd'];
+  // Keep legacy ingestion folder reporting only if folders physically exist on disk
+  for (const legacy of ['explo', 'torrents', 'inbox']) {
+    if (fs.existsSync(path.join(effectiveMusicDir, legacy))) {
+      subdirs.push(legacy);
+    }
   }
   const folderStatus: Record<string, { exists: boolean; path: string; fileCount: number }> = {};
 
@@ -103,13 +105,14 @@ export async function getStorageStatus() {
     }
   } catch {}
 
-  // Any music file in musicRoot outside explo, slskd, and torrents belongs to the user's personal collection
-  const exploCount = folderStatus.explo?.fileCount || 0;
+  // Any music file in musicRoot outside managed ingestion folders belongs to the user's personal collection
+  const discoverCount = folderStatus.discover?.fileCount || 0;
   const slskdCount = folderStatus.slskd?.fileCount || 0;
+  const exploCount = folderStatus.explo?.fileCount || 0;
   const torrentsCount = folderStatus.torrents?.fileCount || 0;
   const personalCount = Math.max(
     folderStatus.personal?.fileCount || 0,
-    totalFiles - (exploCount + slskdCount + torrentsCount)
+    totalFiles - (discoverCount + slskdCount + exploCount + torrentsCount)
   );
 
   folderStatus.personal = {
@@ -146,7 +149,7 @@ export function initStorageFolders(musicRoot?: string) {
   if (!fs.existsSync(targetRoot)) {
     fs.mkdirSync(targetRoot, { recursive: true });
   }
-  const subdirs = ['personal', 'explo', 'slskd', 'torrents'];
+  const subdirs = ['personal', 'discover', 'slskd'];
   for (const sub of subdirs) {
     const p = path.join(targetRoot, sub);
     if (!fs.existsSync(p)) {
