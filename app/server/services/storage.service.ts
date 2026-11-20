@@ -51,6 +51,40 @@ export function countFilesRecursively(dirPath: string): number {
 }
 
 /**
+ * Remove stale leftover directories inside slskd/ that contain zero audio files (e.g. cover.jpg left behind after import)
+ */
+export function cleanupSlskdLeftoverFolders(musicDir: string, minAgeMs = 10 * 60 * 1000): number {
+  const slskdDir = path.join(musicDir, 'slskd');
+  if (!fs.existsSync(slskdDir)) return 0;
+
+  let removed = 0;
+  const now = Date.now();
+  try {
+    const entries = fs.readdirSync(slskdDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const nameLower = entry.name.toLowerCase();
+      if (IGNORED_FOLDERS.has(nameLower) || entry.name.startsWith('.')) continue;
+
+      const subPath = path.join(slskdDir, entry.name);
+      try {
+        const stat = fs.statSync(subPath);
+        if (minAgeMs > 0 && now - stat.mtimeMs < minAgeMs) continue;
+        if (countFilesRecursively(subPath) === 0) {
+          fs.rmSync(subPath, { recursive: true, force: true });
+          removed++;
+        }
+      } catch {
+        // Gracefully skip locked or unreadable directories
+      }
+    }
+  } catch {
+    // Gracefully skip if slskdDir is unreadable
+  }
+  return removed;
+}
+
+/**
  * Inspección del almacenamiento de música
  */
 export async function getStorageStatus() {
@@ -59,6 +93,9 @@ export async function getStorageStatus() {
   const effectiveMusicDir = fs.existsSync(musicRoot)
     ? musicRoot
     : (fs.existsSync('/music') ? '/music' : musicRoot);
+
+  // Clean up residual cover-only folders in slskd staging older than 10 minutes
+  cleanupSlskdLeftoverFolders(effectiveMusicDir);
 
   const subdirs = ['personal', 'discover', 'slskd'];
   // Keep legacy ingestion folder reporting only if folders physically exist on disk

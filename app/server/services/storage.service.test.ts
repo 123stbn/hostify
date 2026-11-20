@@ -8,6 +8,7 @@ import {
   browseDirectory,
   createDirectory,
   initStorageFolders,
+  cleanupSlskdLeftoverFolders,
 } from './storage.service.js';
 
 describe('Storage Service (storage.service.ts)', () => {
@@ -96,5 +97,19 @@ describe('Storage Service (storage.service.ts)', () => {
     const result = browseDirectory('C:\\music\\rock');
     assert.notEqual(result.currentPath, 'C:\\music\\rock');
     assert.ok(Array.isArray(result.breadcrumbs));
+  });
+
+  test('cleanupSlskdLeftoverFolders removes residual cover-only dirs and keeps dirs with audio', () => {
+    const coverOnly = path.join(tmpDir, 'slskd', 'OldAlbum');
+    const withAudio = path.join(tmpDir, 'slskd', 'ActiveAlbum');
+    fs.mkdirSync(coverOnly, { recursive: true });
+    fs.mkdirSync(withAudio, { recursive: true });
+    fs.writeFileSync(path.join(coverOnly, 'cover.jpg'), 'img');
+    fs.writeFileSync(path.join(withAudio, '01.flac'), 'audio');
+
+    const removed = cleanupSlskdLeftoverFolders(tmpDir, 0);
+    assert.equal(removed, 1);
+    assert.equal(fs.existsSync(coverOnly), false);
+    assert.equal(fs.existsSync(withAudio), true);
   });
 });

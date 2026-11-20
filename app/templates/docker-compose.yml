@@ -90,6 +90,7 @@ services:
       - "4533"
     environment:
       - ND_SCANSCHEDULE=1m
+      - ND_SCANNER_PURGEMISSING=always
       - ND_LOGLEVEL=info
       - ND_SESSIONTIMEOUT=48h
       - ND_BASEURL=${BASE_URL:-}

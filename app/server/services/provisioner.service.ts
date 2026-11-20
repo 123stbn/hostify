@@ -15,9 +15,10 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
         try { fs.mkdirSync(dnDir, { recursive: true }); } catch {}
       }
     }
-    const effectiveMusicRoot = fs.existsSync(musicRoot)
-      ? musicRoot
-      : (fs.existsSync('/music') ? '/music' : musicRoot);
+    const inContainer = fs.existsSync('/.dockerenv') || process.env.CONTAINER === 'true';
+    const effectiveMusicRoot = (!fs.existsSync(musicRoot) && inContainer && fs.existsSync('/music'))
+      ? '/music'
+      : musicRoot;
     for (const sub of ['personal', 'discover', 'slskd']) {
       const subDir = path.join(effectiveMusicRoot, sub);
       if (!fs.existsSync(subDir)) {
@@ -26,7 +27,34 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
       if (sub === 'discover' || sub === 'slskd') {
         try { fs.chmodSync(subDir, 0o777); } catch {}
       }
+      if (sub === 'slskd') {
+        // Keep raw Soulseek staging downloads out of Navidrome until DroppedNeedle imports them into /discover
+        const ndignorePath = path.join(subDir, '.ndignore');
+        if (!fs.existsSync(ndignorePath)) {
+          try { fs.writeFileSync(ndignorePath, '', 'utf-8'); } catch {}
+        }
+      }
     }
+
+    // Ignore NAS recycle bins, metadata directories, and raw slskd staging at music root
+    const rootNdignorePath = path.join(effectiveMusicRoot, '.ndignore');
+    const rootNdignoreContent = [
+      '# Ignore NAS recycle bins, system metadata, and raw staging folders',
+      '\\#recycle/',
+      '.recycle/',
+      '@Recycle/',
+      '.Recycle.Bin/',
+      '@eaDir/',
+      '.Trash*/',
+      'slskd/',
+      '',
+    ].join('\n');
+    try {
+      const existing = fs.existsSync(rootNdignorePath) ? fs.readFileSync(rootNdignorePath, 'utf-8') : '';
+      if (!existing.includes('\\#recycle/')) {
+        fs.writeFileSync(rootNdignorePath, rootNdignoreContent, 'utf-8');
+      }
+    } catch {}
 
     // 2. Feishin Zero-Config (Ensure settings.js template exists in DOCKER_DATA)
     const feishinDataDir = path.join(dockerData, 'feishin');

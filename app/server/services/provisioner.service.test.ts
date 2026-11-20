@@ -32,6 +32,10 @@ describe('Provisioner Service (provisioner.service.ts)', () => {
     assert.ok(fs.existsSync(path.join(musicRoot, 'personal')));
     assert.ok(fs.existsSync(path.join(musicRoot, 'discover')));
     assert.ok(fs.existsSync(path.join(musicRoot, 'slskd')));
+    assert.ok(fs.existsSync(path.join(musicRoot, 'slskd', '.ndignore')));
+    assert.ok(fs.existsSync(path.join(musicRoot, '.ndignore')));
+    assert.ok(fs.existsSync(path.join(musicRoot, 'slskd', '.ndignore')));
+    assert.ok(fs.existsSync(path.join(musicRoot, '.ndignore')));
   });
 
   test('configureBeetsYaml creates default config.yaml with plugins and web on port 8337', () => {
