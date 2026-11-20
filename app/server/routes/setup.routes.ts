@@ -89,7 +89,9 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
     // 1. Create required subfolders (best-effort: path may be read-only inside the
     //    container if it lives under HOST_HOME which is mounted :ro for browsing).
     //    The subdirs will also be created by the ingestion containers on first start.
-    const targetMusic = envData.MUSIC_ROOT;
+    const targetMusic = fs.existsSync(envData.MUSIC_ROOT)
+      ? envData.MUSIC_ROOT
+      : (fs.existsSync('/music') ? '/music' : envData.MUSIC_ROOT);
     const subdirs = ['personal', 'discover', 'slskd'];
     for (const sub of subdirs) {
       const p = path.join(targetMusic, sub);
