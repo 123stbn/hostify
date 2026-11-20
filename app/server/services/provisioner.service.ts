@@ -405,7 +405,7 @@ export async function ensureDroppedNeedleSetup(retry = 0): Promise<DroppedNeedle
         const dlCfg = (await dlRes.json()) as Record<string, any>;
         const targetUrl = 'http://hostify-slskd:5030';
         const targetKey = env.SLSKD_API_KEY || 'hostify_secret_key';
-        if (!dlCfg.enabled || dlCfg.url !== targetUrl) {
+        if (!dlCfg.enabled || dlCfg.url !== targetUrl || dlCfg.downloads_subpath === 'slskd') {
           await fetch(`${apiBase}/settings/download-client/config`, {
             method: 'PUT',
             headers: authHeaders,
@@ -414,7 +414,7 @@ export async function ensureDroppedNeedleSetup(retry = 0): Promise<DroppedNeedle
               enabled: true,
               url: targetUrl,
               api_key: targetKey,
-              downloads_subpath: dlCfg.downloads_subpath || 'slskd',
+              downloads_subpath: '',
             }),
             signal: AbortSignal.timeout(4000),
           });
