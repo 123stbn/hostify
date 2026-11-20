@@ -15,13 +15,17 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
         try { fs.mkdirSync(dnDir, { recursive: true }); } catch {}
       }
     }
-    const discoverDir = path.join(musicRoot, 'discover');
-    const slskdDir = path.join(musicRoot, 'slskd');
-    if (!fs.existsSync(discoverDir)) {
-      try { fs.mkdirSync(discoverDir, { recursive: true }); } catch {}
-    }
-    if (!fs.existsSync(slskdDir)) {
-      try { fs.mkdirSync(slskdDir, { recursive: true }); } catch {}
+    const effectiveMusicRoot = fs.existsSync(musicRoot)
+      ? musicRoot
+      : (fs.existsSync('/music') ? '/music' : musicRoot);
+    for (const sub of ['personal', 'discover', 'slskd']) {
+      const subDir = path.join(effectiveMusicRoot, sub);
+      if (!fs.existsSync(subDir)) {
+        try { fs.mkdirSync(subDir, { recursive: true }); } catch {}
+      }
+      if (sub === 'discover' || sub === 'slskd') {
+        try { fs.chmodSync(subDir, 0o777); } catch {}
+      }
     }
 
     // 2. Feishin Zero-Config (Ensure settings.js template exists in DOCKER_DATA)
