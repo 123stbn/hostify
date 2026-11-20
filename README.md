@@ -32,7 +32,7 @@ Commercial music streaming services lock your music behind monthly subscriptions
 - ⚡ **Ultra-Lightweight Streaming:** Engine powered by **Navidrome** (built in Go, consuming < 60 MB RAM), replacing resource-heavy alternatives with full **OpenSubsonic API** compatibility.
 - 📱 **Client Ecosystem:** Seamless native compatibility with **Feishin** (Spotify-like modern desktop player for macOS, Windows, and Linux), **Symfonium** (Android client with parametric EQ and offline caching), and **SubSonify / Amperfy** (iOS & CarPlay).
 - 🏷️ **Smart Metadata & Auto-Tagging:** Built-in **Beets** cataloger powered by MusicBrainz for automated tagging, lyric fetching, and artwork embedding, plus **Multi-Scrobbler** for real-time ListenBrainz history.
-- 🗂️ **Segmented Ingestion Architecture:** Independent download and ingestion modules (**Slskd** for Soulseek P2P, **Explo** for automated playlist curator downloads, and the **Lidarr + Prowlarr + qBittorrent** combo with an isolated temporary download buffer) depositing into dedicated subfolders under a unified music root.
+- 🗂️ **Segmented Ingestion & Discovery Architecture:** Lightweight discovery and acquisition powered by **DroppedNeedle** (MusicBrainz catalog tracker, artist discography gap detection, recommendations, and 1-click requests) paired natively with **Slskd** (Soulseek P2P), depositing into clean dedicated subfolders under a unified music root.
 - 🔒 **Flexible Remote Access:** Built-in support for **Tailscale** private mesh networks (0 router ports exposed to the Internet) as well as **Reverse Proxies** with custom HTTPS domains (Caddy / Nginx / Traefik / Cloudflare Tunnel).
 - 📊 **Operational Dashboard:** Real-time container health and memory monitoring, live log inspection, storage analytics, and copy-paste connection parameters for third-party music clients.
 
@@ -45,17 +45,13 @@ To preserve metadata integrity and prevent half-downloaded tracks from breaking 
 ```text
 /volume1/music/                          <-- Mounted into Navidrome (/music:ro)
 ├── personal/                            <-- Clean personal collection (CD/vinyl rips, manual uploads)
-├── explo/                               <-- Dedicated to smart curator downloads (Explo)
+├── discover/                            <-- Verified albums & tracks organized by DroppedNeedle
 │   └── Artist/Album/track.flac
-├── slskd/                               <-- Dedicated to Soulseek P2P (Slskd)
-│   └── Artist/Album/track.flac
-└── torrents/                            <-- Completed BitTorrent downloads (qBittorrent)
-    └── Artist - Album/track.flac
-
-/volume1/docker/qbittorrent/incomplete  <-- Isolated scratch buffer for active torrents (Navidrome NEVER scans this)
+└── slskd/                               <-- Soulseek P2P downloads (Slskd / SLSKD_DOWNLOADS_PATH)
+    └── Artist/Album/track.flac
 ```
 
-**Golden Rule:** Navidrome mounts `/volume1/music` strictly in read-only mode (`:ro`) and scans all subdirectories recursively. Built-in Beets enriches and embeds ID3/FLAC tags and cover art in-place without moving files or breaking downloader paths. You get a single, consolidated, clean discography across all your player applications.
+**Golden Rule:** Navidrome mounts `/volume1/music` strictly in read-only mode (`:ro`) and scans all subdirectories recursively. DroppedNeedle shares `/volume1/music:/data:rw` so verified `slskd` downloads are imported atomically into `/discover`, while built-in Beets enriches ID3/FLAC tags and cover art in-place. You get a single, consolidated, clean discography across all your player applications.
 
 ---
 

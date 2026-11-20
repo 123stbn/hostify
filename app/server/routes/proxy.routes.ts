@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import fs from 'node:fs';
 import { parseEnv, ENV_FILE_PATH } from '../utils/env.js';
+import { getDroppedNeedleSessionCookie, invalidateDroppedNeedleSessionCookie } from '../services/provisioner.service.js';
 
 // Helper to resolve internal container DNS or localhost
 export function resolveServiceTarget(serviceName: string, defaultPort: number, hostDevPort?: number): string {
@@ -215,86 +216,61 @@ export const slskdHubProxyMiddleware = createProxyMiddleware({
   ws: true
 });
 
-// Explo curator web UI proxy (rewrites asset references so scripts load under /tools/explo/assets/)
-export const exploProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/explo/**',
-  router: () => resolveServiceTarget('explo', 7288),
-  pathRewrite: { '^/tools/explo': '' },
-  changeOrigin: true,
-  ws: true,
-  selfHandleResponse: true,
-  on: {
-    proxyRes: responseInterceptor(async (responseBuffer, proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] || '';
-      if (contentType.includes('text/html')) {
-        let html = responseBuffer.toString('utf8');
-        html = html.replace(/(src|href)="\/(assets\/[^"]+)"/g, '$1="/tools/explo/$2"');
-        return html;
-      }
-      if (contentType.includes('javascript')) {
-        let js = responseBuffer.toString('utf8');
-        js = js.replace(/"\/assets\//g, '"/tools/explo/assets/');
-        return js;
-      }
-      return responseBuffer;
-    })
+// Auto-authenticate browser sessions visiting DroppedNeedle through Hostify gateway
+export async function droppedneedleAutoAuthMiddleware(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!req.path.startsWith('/tools/discover')) {
+    next();
+    return;
   }
-});
 
-// Explo UI API & SSE/Events proxy
-export const exploApiProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/api/ui/**',
-  router: () => resolveServiceTarget('explo', 7288),
-  changeOrigin: true,
-  ws: true
-});
+  const isHtmlEntry = req.method === 'GET'
+    && (req.headers.accept || '').includes('text/html')
+    && !req.path.startsWith('/tools/discover/login');
+  const isApiMissingCookie = req.path.startsWith('/tools/discover/api/v3/')
+    && !req.path.includes('/auth/')
+    && !(req.headers.cookie || '').includes('droppedneedle_sid=');
 
-// qBittorrent web UI proxy (injects base href and normalizes Origin/Referer to avoid 401)
-export const qbittorrentProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/qbittorrent/**',
-  router: () => resolveServiceTarget('qbittorrent', 8080),
-  pathRewrite: { '^/tools/qbittorrent': '' },
+  if (isHtmlEntry || isApiMissingCookie) {
+    const sid = await getDroppedNeedleSessionCookie();
+    if (sid) {
+      if (isHtmlEntry) {
+        res.append('Set-Cookie', `droppedneedle_sid=${sid}; HttpOnly; SameSite=Lax; Path=/tools/discover/api/v3; Max-Age=2592000`);
+      }
+      if (isApiMissingCookie) {
+        req.headers.cookie = req.headers.cookie
+          ? `${req.headers.cookie}; droppedneedle_sid=${sid}`
+          : `droppedneedle_sid=${sid}`;
+      }
+    }
+  }
+
+  next();
+}
+
+// DroppedNeedle music discovery, catalog tracking & requests proxy (preserves /tools/discover BASE_PATH)
+export const droppedneedleProxyMiddleware = createProxyMiddleware({
+  pathFilter: '/tools/discover/**',
+  router: () => resolveServiceTarget('droppedneedle', 8688),
   changeOrigin: true,
   ws: true,
-  selfHandleResponse: true,
   on: {
-    proxyReq: (proxyReq, req) => {
-      const target = resolveServiceTarget('qbittorrent', 8080);
-      const hostOnly = target.replace(/^https?:\/\//, '');
-      proxyReq.setHeader('host', hostOnly);
-      proxyReq.setHeader('x-forwarded-host', (req.headers['host'] as string) || hostOnly);
-      // qBittorrent requires Origin and Referer to strictly match its internal Host to prevent 401 Unauthorized
-      proxyReq.setHeader('origin', target);
-      proxyReq.setHeader('referer', `${target}/`);
+    proxyReq: (proxyReq) => {
+      const target = resolveServiceTarget('droppedneedle', 8688);
+      if (proxyReq.getHeader('origin')) {
+        proxyReq.setHeader('origin', target);
+      }
+      if (proxyReq.getHeader('referer')) {
+        const ref = String(proxyReq.getHeader('referer'));
+        const idx = ref.indexOf('/tools/discover');
+        proxyReq.setHeader('referer', idx !== -1 ? `${target}${ref.slice(idx)}` : `${target}/tools/discover/`);
+      }
     },
-    proxyRes: responseInterceptor(async (responseBuffer, proxyRes) => {
-      const contentType = proxyRes.headers['content-type'] || '';
-      if (contentType.includes('text/html')) {
-        let html = responseBuffer.toString('utf8');
-        if (!html.includes('<base ')) {
-          html = html.replace('<head>', '<head>\n    <base href="/tools/qbittorrent/">');
-        }
-        return html;
+    proxyRes: (proxyRes, req) => {
+      if (proxyRes.statusCode === 401 && !(req.url || '').includes('/auth/')) {
+        invalidateDroppedNeedleSessionCookie();
       }
-      return responseBuffer;
-    })
+    }
   }
-});
-
-// Prowlarr indexer web UI proxy (preserves /tools/prowlarr UrlBase)
-export const prowlarrProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/prowlarr/**',
-  router: () => resolveServiceTarget('prowlarr', 9696),
-  changeOrigin: true,
-  ws: true
-});
-
-// Lidarr music manager web UI proxy (preserves /tools/lidarr UrlBase)
-export const lidarrProxyMiddleware = createProxyMiddleware({
-  pathFilter: '/tools/lidarr/**',
-  router: () => resolveServiceTarget('lidarr', 8686),
-  changeOrigin: true,
-  ws: true
 });
 
 // Multi-scrobbler web UI proxy (preserves /tools/scrobbler base path)

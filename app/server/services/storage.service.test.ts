@@ -58,12 +58,11 @@ describe('Storage Service (storage.service.ts)', () => {
     assert.equal(count, 3);
   });
 
-  test('initStorageFolders creates personal, explo, slskd, and torrents folders', () => {
+  test('initStorageFolders creates personal, discover, and slskd folders', () => {
     initStorageFolders(tmpDir);
     assert.ok(fs.existsSync(path.join(tmpDir, 'personal')));
-    assert.ok(fs.existsSync(path.join(tmpDir, 'explo')));
+    assert.ok(fs.existsSync(path.join(tmpDir, 'discover')));
     assert.ok(fs.existsSync(path.join(tmpDir, 'slskd')));
-    assert.ok(fs.existsSync(path.join(tmpDir, 'torrents')));
   });
 
   test('browseDirectory returns breadcrumbs, directories, and write permissions', () => {

@@ -30,11 +30,12 @@ export interface AppStatus {
   listenBrainzToken?: string;
   enableListenBrainz?: boolean;
   modules?: {
-    explo: boolean;
-    slskd: boolean;
-    qbittorrent: boolean;
-    prowlarr: boolean;
-    lidarr: boolean;
+    droppedneedle?: boolean;
+    slskd?: boolean;
+    explo?: boolean;
+    qbittorrent?: boolean;
+    prowlarr?: boolean;
+    lidarr?: boolean;
   } | null;
   remoteAccess?: 'tailscale' | 'proxy' | 'local';
   domain?: string;

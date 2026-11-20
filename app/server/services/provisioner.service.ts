@@ -1,163 +1,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { PROJECT_DIR, parseEnv, ENV_FILE_PATH } from '../utils/env.js';
-import { getHostAllowedAddresses } from './network.service.js';
-
+import { PROJECT_DIR, ENV_FILE_PATH, parseEnv, writeEnv } from '../utils/env.js';
 import { resolveServiceTarget } from '../routes/proxy.routes.js';
 
 /**
- * Parchea o inicializa el config.xml de una app *arr (Prowlarr / Lidarr)
+ * Provision directories and Zero-Config templates for DroppedNeedle, Feishin, Beets, and Multi-Scrobbler
  */
-export function configureServarrXml(
-  configPath: string,
-  port: number,
-  instanceName: string,
-  allowedHostsStr: string,
-  trustedNetworksStr: string,
-  envKey: string,
-  envData?: Record<string, string>,
-  urlBase?: string
-) {
-  const patchXml = (xml: string): string => {
-    let out = xml;
-    const replacements: [RegExp, string][] = [
-      [/<AuthenticationMethod>.*?<\/AuthenticationMethod>/i, '<AuthenticationMethod>Forms</AuthenticationMethod>'],
-      [/<AuthenticationRequired>.*?<\/AuthenticationRequired>/i, '<AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>'],
-      [/<AllowedHosts>.*?<\/AllowedHosts>/i, `<AllowedHosts>${allowedHostsStr}</AllowedHosts>`],
-      [/<TrustedNetworks>.*?<\/TrustedNetworks>/i, `<TrustedNetworks>${trustedNetworksStr}</TrustedNetworks>`],
-    ];
-    if (urlBase !== undefined) {
-      replacements.push([/<UrlBase>.*?<\/UrlBase>/i, `<UrlBase>${urlBase}</UrlBase>`]);
-    }
-    for (const [pattern, replacement] of replacements) {
-      if (pattern.test(out)) {
-        out = out.replace(pattern, replacement);
-      } else {
-        out = out.replace(/<\/Config>/i, `  ${replacement}\n</Config>`);
-      }
-    }
-    return out;
-  };
-
-  if (fs.existsSync(configPath)) {
-    let xml = fs.readFileSync(configPath, 'utf-8');
-    xml = patchXml(xml);
-    const match = xml.match(/<ApiKey>(.*?)<\/ApiKey>/i);
-    if (match && match[1] && envData) {
-      envData[envKey] = match[1];
-    }
-    fs.writeFileSync(configPath, xml, 'utf-8');
-  } else {
-    const apiKey = envData?.[envKey] || crypto.randomBytes(16).toString('hex');
-    if (envData) envData[envKey] = apiKey;
-    const xml = `<Config>\n  <BindAddress>*</BindAddress>\n  <Port>${port}</Port>\n  <EnableSsl>False</EnableSsl>\n  <ApiKey>${apiKey}</ApiKey>\n  <AuthenticationMethod>Forms</AuthenticationMethod>\n  <AuthenticationRequired>DisabledForLocalAddresses</AuthenticationRequired>\n  <AllowedHosts>${allowedHostsStr}</AllowedHosts>\n  <TrustedNetworks>${trustedNetworksStr}</TrustedNetworks>\n  <Branch>master</Branch>\n  <LogLevel>info</LogLevel>\n  <UrlBase>${urlBase || ''}</UrlBase>\n  <InstanceName>${instanceName}</InstanceName>\n  <UpdateMechanism>Docker</UpdateMechanism>\n</Config>\n`;
-    fs.writeFileSync(configPath, xml, 'utf-8');
-  }
-}
-
-/**
- * Auto-aprovisionar credenciales y configuración Zero-Config para qBittorrent, Prowlarr, Lidarr y Feishin
- */
-export function autoConfigureIngestionServices(dockerData: string, musicRoot: string, envData?: Record<string, string>): void {
+export function autoConfigureIngestionServices(dockerData: string, musicRoot: string, _envData?: Record<string, string>): void {
   try {
-    // 1. qBittorrent Zero-Config
-    const qbitDir = path.join(dockerData, 'qbittorrent', 'config', 'qBittorrent');
-    const qbitIncomplete = path.join(dockerData, 'qbittorrent', 'incomplete');
-    const torrentsCompleted = path.join(musicRoot, 'torrents');
-
-    if (!fs.existsSync(qbitDir)) fs.mkdirSync(qbitDir, { recursive: true });
-    if (!fs.existsSync(qbitIncomplete)) fs.mkdirSync(qbitIncomplete, { recursive: true });
-    if (!fs.existsSync(torrentsCompleted)) fs.mkdirSync(torrentsCompleted, { recursive: true });
-
-    const qbitConfPath = path.join(qbitDir, 'qBittorrent.conf');
-    let qbitLines: string[] = [];
-    if (fs.existsSync(qbitConfPath)) {
-      qbitLines = fs.readFileSync(qbitConfPath, 'utf-8').split('\n');
-    }
-
-    const qbitKeys: Record<string, string> = {
-      'WebUI\\Address': 'WebUI\\Address=*',
-      'WebUI\\Port': 'WebUI\\Port=8080',
-      'WebUI\\AuthSubnetWhitelist': 'WebUI\\AuthSubnetWhitelist=0.0.0.0/0, ::/0',
-      'WebUI\\AuthSubnetWhitelistEnabled': 'WebUI\\AuthSubnetWhitelistEnabled=true',
-      'WebUI\\LocalHostAuth': 'WebUI\\LocalHostAuth=false',
-      'WebUI\\UseUPnP': 'WebUI\\UseUPnP=false',
-      'WebUI\\ReverseProxySupportEnabled': 'WebUI\\ReverseProxySupportEnabled=true',
-      'WebUI\\HostHeaderValidation': 'WebUI\\HostHeaderValidation=false',
-      'WebUI\\CSRFProtection': 'WebUI\\CSRFProtection=false',
-      'WebUI\\ClickjackingProtection': 'WebUI\\ClickjackingProtection=false',
-      'WebUI\\TrustedReverseProxiesList': 'WebUI\\TrustedReverseProxiesList=0.0.0.0/0, ::/0',
-      'Downloads\\SavePath': 'Downloads\\SavePath=/downloads/completed/',
-      'Downloads\\TempPath': 'Downloads\\TempPath=/downloads/incomplete/',
-      'Downloads\\TempPathEnabled': 'Downloads\\TempPathEnabled=true',
-      'Connection\\PortRangeMin': 'Connection\\PortRangeMin=6881',
-      'Connection\\UPnP': 'Connection\\UPnP=false',
-    };
-
-    let hasPreferences = false;
-    let hasLegalNotice = false;
-    const finalQbitLines: string[] = [];
-    const seenKeys = new Set<string>();
-
-    for (const line of qbitLines) {
-      if (line.trim() === '[Preferences]') hasPreferences = true;
-      if (line.trim() === '[LegalNotice]') hasLegalNotice = true;
-
-      let matched = false;
-      for (const [k, fullVal] of Object.entries(qbitKeys)) {
-        if (line.startsWith(k + '=')) {
-          finalQbitLines.push(fullVal);
-          seenKeys.add(k);
-          matched = true;
-          break;
-        }
-      }
-      if (!matched) finalQbitLines.push(line);
-    }
-
-    if (!hasLegalNotice) finalQbitLines.unshift('[LegalNotice]', 'Accepted=true', '');
-    if (!hasPreferences) finalQbitLines.push('[Preferences]');
-
-    const prefIdx = finalQbitLines.findIndex(l => l.trim() === '[Preferences]');
-    for (const [k, fullVal] of Object.entries(qbitKeys)) {
-      if (!seenKeys.has(k)) {
-        finalQbitLines.splice(prefIdx + 1, 0, fullVal);
+    // 1. DroppedNeedle & Slskd directories (cache uses named Docker volume for SQLite compatibility)
+    for (const sub of ['config', 'plugins']) {
+      const dnDir = path.join(dockerData, 'droppedneedle', sub);
+      if (!fs.existsSync(dnDir)) {
+        try { fs.mkdirSync(dnDir, { recursive: true }); } catch {}
       }
     }
-    fs.writeFileSync(qbitConfPath, finalQbitLines.join('\n').trim() + '\n', 'utf-8');
+    const discoverDir = path.join(musicRoot, 'discover');
+    const slskdDir = path.join(musicRoot, 'slskd');
+    if (!fs.existsSync(discoverDir)) {
+      try { fs.mkdirSync(discoverDir, { recursive: true }); } catch {}
+    }
+    if (!fs.existsSync(slskdDir)) {
+      try { fs.mkdirSync(slskdDir, { recursive: true }); } catch {}
+    }
 
-    // 2. Prowlarr & Lidarr Zero-Config
-    const allowedHostsStr = getHostAllowedAddresses().join(',');
-    const trustedNetworksStr = '172.16.0.0/12, 192.168.0.0/16, 10.0.0.0/8, 127.0.0.1/32, 100.64.0.0/10';
-
-    const prowlarrDir = path.join(dockerData, 'prowlarr');
-    if (!fs.existsSync(prowlarrDir)) fs.mkdirSync(prowlarrDir, { recursive: true });
-    configureServarrXml(
-      path.join(prowlarrDir, 'config.xml'),
-      9696,
-      'Prowlarr',
-      allowedHostsStr,
-      trustedNetworksStr,
-      'PROWLARR_API_KEY',
-      envData,
-      '/tools/prowlarr'
-    );
-
-    const lidarrDir = path.join(dockerData, 'lidarr');
-    if (!fs.existsSync(lidarrDir)) fs.mkdirSync(lidarrDir, { recursive: true });
-    configureServarrXml(
-      path.join(lidarrDir, 'config.xml'),
-      8686,
-      'Lidarr',
-      allowedHostsStr,
-      trustedNetworksStr,
-      'LIDARR_API_KEY',
-      envData,
-      '/tools/lidarr'
-    );
-
-    // 3. Feishin Zero-Config (Ensure settings.js template exists in DOCKER_DATA)
+    // 2. Feishin Zero-Config (Ensure settings.js template exists in DOCKER_DATA)
     const feishinDataDir = path.join(dockerData, 'feishin');
     if (!fs.existsSync(feishinDataDir)) fs.mkdirSync(feishinDataDir, { recursive: true });
     const feishinTemplatePath = path.join(feishinDataDir, 'settings.js.template');
@@ -288,7 +155,7 @@ window.FS_GENERAL_THEME = "\${FS_GENERAL_THEME:-defaultDark}";
     }
     try { fs.chmodSync(msConfigDir, 0o777); } catch {}
   } catch (err: any) {
-    console.error('Error auto-configurando qbittorrent/prowlarr/lidarr/feishin/beets:', err.message);
+    console.error('Error auto-configurando droppedneedle/feishin/beets/multi-scrobbler:', err.message);
   }
 }
 
@@ -363,296 +230,327 @@ scrub:
 `;
 
 /**
- * Auto-aprovisionar config.yaml para Beets
+ * Auto-provision config.yaml for Beets
  */
 export function configureBeetsYaml(configPath: string): void {
   // Always write the clean canonical Hostify configuration from scratch
   fs.writeFileSync(configPath, BEETS_CONFIG_YAML, 'utf-8');
 }
 
+export interface DroppedNeedleSetupResult {
+  success: boolean;
+  reason?: string;
+}
+
+let cachedDnSession: { value: string; obtainedAt: number } | null = null;
+let inFlightDnSession: Promise<string | null> | null = null;
+const DN_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
+
+export function invalidateDroppedNeedleSessionCookie(): void {
+  cachedDnSession = null;
+}
+
 /**
- * Configurar indexadores públicos de música en Prowlarr, vincular Lidarr y qBittorrent vía API
+ * Obtain and cache a valid droppedneedle_sid session cookie for passwordless reverse-proxy access
  */
-export async function ensureProwlarrLidarrSetup(dockerData: string, retry = 0): Promise<void> {
-  const maxRetries = 15;
-  try {
-    const prowlarrXml = path.join(dockerData, 'prowlarr', 'config.xml');
-    const lidarrXml = path.join(dockerData, 'lidarr', 'config.xml');
-    if (!fs.existsSync(prowlarrXml) || !fs.existsSync(lidarrXml)) {
-      if (retry < maxRetries) {
-        setTimeout(() => ensureProwlarrLidarrSetup(dockerData, retry + 1), 3000);
-      }
-      return;
-    }
+export async function getDroppedNeedleSessionCookie(): Promise<string | null> {
+  if (cachedDnSession && (Date.now() - cachedDnSession.obtainedAt) < DN_SESSION_TTL_MS) {
+    return cachedDnSession.value;
+  }
+  if (inFlightDnSession) return inFlightDnSession;
 
-    const pXml = fs.readFileSync(prowlarrXml, 'utf-8');
-    const lXml = fs.readFileSync(lidarrXml, 'utf-8');
-    const pKeyMatch = pXml.match(/<ApiKey>(.*?)<\/ApiKey>/i);
-    const lKeyMatch = lXml.match(/<ApiKey>(.*?)<\/ApiKey>/i);
-
-    if (!pKeyMatch || !lKeyMatch) {
-      if (retry < maxRetries) {
-        setTimeout(() => ensureProwlarrLidarrSetup(dockerData, retry + 1), 3000);
-      }
-      return;
-    }
-
-    const currentEnv = parseEnv(ENV_FILE_PATH);
-    const adminUser = currentEnv.NAVIDROME_ADMIN_USER || '';
-    const adminPass = currentEnv.NAVIDROME_ADMIN_PASSWORD || '';
-    const adminLogin = adminUser && adminPass
-      ? { username: adminUser, password: adminPass, passwordConfirmation: adminPass }
-      : {};
-    const allowedHostsList = getHostAllowedAddresses();
-    const allowedHostsStr = allowedHostsList.join(',');
-    const trustedNetworksStr = '172.16.0.0/12, 192.168.0.0/16, 10.0.0.0/8, 127.0.0.1/32, 100.64.0.0/10';
-
-    const prowlarrApiKey = pKeyMatch[1];
-    const lidarrApiKey = lKeyMatch[1];
-
-    const prowlarrBase = `${resolveServiceTarget('prowlarr', 9696)}/tools/prowlarr`;
-    const lidarrBase = `${resolveServiceTarget('lidarr', 8686)}/tools/lidarr`;
-
-    // Check if Prowlarr is responding
-    const testRes = await fetch(`${prowlarrBase}/api/v1/system/status`, {
-      headers: { 'X-Api-Key': prowlarrApiKey },
-      signal: AbortSignal.timeout(3000),
-    }).catch(() => null);
-
-    // Check if Lidarr is responding
-    const testLidarr = await fetch(`${lidarrBase}/api/v1/system/status`, {
-      headers: { 'X-Api-Key': lidarrApiKey },
-      signal: AbortSignal.timeout(3000),
-    }).catch(() => null);
-
-    if (!testRes || testRes.status !== 200 || !testLidarr || testLidarr.status !== 200) {
-      if (retry < maxRetries) {
-        setTimeout(() => ensureProwlarrLidarrSetup(dockerData, retry + 1), 4000);
-      }
-      return;
-    }
-
-    console.log('[Hostify Provisioner] Prowlarr and Lidarr online. Verifying local authentication and AllowedHosts...');
-
-    // 0. Synchronize Host configuration (Forms + DisabledForLocalAddresses + AllowedHosts) via API
+  inFlightDnSession = (async () => {
     try {
-      const pHostRes = await fetch(`${prowlarrBase}/api/v1/config/host`, {
-        headers: { 'X-Api-Key': prowlarrApiKey },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (pHostRes.ok) {
-        const pHostConfig = await pHostRes.json() as any;
-        const currentAllowed = pHostConfig.allowedHosts || '';
-        const missingAnyIp = allowedHostsList.some(ip => !currentAllowed.includes(ip));
-        const authWrong = pHostConfig.authenticationMethod !== 'forms' || pHostConfig.authenticationRequired !== 'disabledForLocalAddresses';
+      const env = parseEnv(ENV_FILE_PATH);
+      const adminUser = (env.NAVIDROME_ADMIN_USER || '').trim();
+      const adminPass = env.NAVIDROME_ADMIN_PASSWORD || '';
+      if (!adminUser || !adminPass) return null;
 
-        if (authWrong || missingAnyIp) {
-          const updateRes = await fetch(`${prowlarrBase}/api/v1/config/host`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-Api-Key': prowlarrApiKey },
-            body: JSON.stringify({
-              ...pHostConfig,
-              authenticationMethod: 'forms',
-              authenticationRequired: 'disabledForLocalAddresses',
-              ...adminLogin,
-              allowedHosts: allowedHostsStr,
-              trustedNetworks: trustedNetworksStr,
-            }),
-            signal: AbortSignal.timeout(4000),
-          });
-          if (updateRes.ok) {
-            console.log('[Hostify Provisioner] Prowlarr host config actualizado correctamente.');
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn('[Hostify Provisioner] Error configurando host en Prowlarr:', err.message);
-    }
-
-    try {
-      const lHostRes = await fetch(`${lidarrBase}/api/v1/config/host`, {
-        headers: { 'X-Api-Key': lidarrApiKey },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (lHostRes.ok) {
-        const lHostConfig = await lHostRes.json() as any;
-        const currentAllowed = lHostConfig.allowedHosts || '';
-        const missingAnyIp = allowedHostsList.some(ip => !currentAllowed.includes(ip));
-        const authWrong = lHostConfig.authenticationMethod !== 'forms' || lHostConfig.authenticationRequired !== 'disabledForLocalAddresses';
-
-        if (authWrong || missingAnyIp) {
-          const updateRes = await fetch(`${lidarrBase}/api/v1/config/host`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'X-Api-Key': lidarrApiKey },
-            body: JSON.stringify({
-              ...lHostConfig,
-              authenticationMethod: 'forms',
-              authenticationRequired: 'disabledForLocalAddresses',
-              ...adminLogin,
-              allowedHosts: allowedHostsStr,
-              trustedNetworks: trustedNetworksStr,
-            }),
-            signal: AbortSignal.timeout(4000),
-          });
-          if (updateRes.ok) {
-            console.log('[Hostify Provisioner] Lidarr host config actualizado correctamente.');
-          }
-        }
-      }
-    } catch (err: any) {
-      console.warn('[Hostify Provisioner] Error configurando host en Lidarr:', err.message);
-    }
-
-    // 1. Retrieve existing indexers in Prowlarr
-    const existingIndexersRes = await fetch(`${prowlarrBase}/api/v1/indexer`, {
-      headers: { 'X-Api-Key': prowlarrApiKey }
-    });
-    const existingIndexers = (await existingIndexersRes.json()) as any[];
-
-    // 2. Retrieve indexer schema in Prowlarr
-    const schemaRes = await fetch(`${prowlarrBase}/api/v1/indexer/schema`, {
-      headers: { 'X-Api-Key': prowlarrApiKey }
-    });
-    const schema = (await schemaRes.json()) as any[];
-
-    // Public indexers optimal for music (Audio / FLAC / MP3 / Discographies)
-    const targetPublicDefs = ['thepiratebay', 'nyaasi', 'limetorrents'];
-
-    for (const defName of targetPublicDefs) {
-      const alreadyAdded = existingIndexers.some(i => i.definitionName === defName);
-      if (!alreadyAdded) {
-        const itemSchema = schema.find(s => s.definitionName === defName);
-        if (itemSchema) {
-          const itemPayload = { ...itemSchema, appProfileId: 1, enable: true };
-          try {
-            const addRes = await fetch(`${prowlarrBase}/api/v1/indexer`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Api-Key': prowlarrApiKey,
-              },
-              body: JSON.stringify(itemPayload),
-            });
-            if (addRes.ok) {
-              console.log(`[Hostify Provisioner] Public indexer '${defName}' added to Prowlarr successfully.`);
-            }
-          } catch (err: any) {
-            console.warn(`[Hostify Provisioner] Error adding indexer ${defName}:`, err.message);
-          }
-        }
-      }
-    }
-
-    // 3. Link Lidarr in Prowlarr (for immediate bi-directional sync)
-    const appsRes = await fetch(`${prowlarrBase}/api/v1/applications`, {
-      headers: { 'X-Api-Key': prowlarrApiKey }
-    });
-    const existingApps = (await appsRes.json()) as any[];
-    const lidarrLinked = existingApps.some(a => a.name === 'Lidarr' || a.implementation === 'Lidarr');
-
-    if (!lidarrLinked) {
-      const appSchemaRes = await fetch(`${prowlarrBase}/api/v1/applications/schema`, {
-        headers: { 'X-Api-Key': prowlarrApiKey }
-      });
-      const appSchemas = (await appSchemaRes.json()) as any[];
-      const lidarrSchema = appSchemas.find(a => a.name === 'Lidarr' || a.implementation === 'Lidarr');
-
-      if (lidarrSchema) {
-        const payload = {
-          ...lidarrSchema,
-          name: 'Lidarr',
-          syncLevel: 'fullSync',
-          enable: true,
-          fields: lidarrSchema.fields.map((f: any) => {
-            if (f.name === 'prowlarrUrl') return { ...f, value: 'http://hostify-prowlarr:9696/tools/prowlarr' };
-            if (f.name === 'baseUrl') return { ...f, value: 'http://hostify-lidarr:8686/tools/lidarr' };
-            if (f.name === 'apiKey') return { ...f, value: lidarrApiKey };
-            return f;
-          })
-        };
-
-        const linkRes = await fetch(`${prowlarrBase}/api/v1/applications`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': prowlarrApiKey,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (linkRes.ok) {
-          console.log('[Hostify Provisioner] Lidarr linked successfully as a Prowlarr application.');
-        }
-      }
-    }
-
-    // 4. Link qBittorrent as download client in Lidarr
-    const dlRes = await fetch(`${lidarrBase}/api/v1/downloadclient`, {
-      headers: { 'X-Api-Key': lidarrApiKey }
-    });
-    const existingClients = (await dlRes.json()) as any[];
-    const qbitLinked = existingClients.some(c => c.implementation === 'QBittorrent' || c.name === 'qBittorrent');
-
-    if (!qbitLinked) {
-      const dlSchemaRes = await fetch(`${lidarrBase}/api/v1/downloadclient/schema`, {
-        headers: { 'X-Api-Key': lidarrApiKey }
-      });
-      const dlSchemas = (await dlSchemaRes.json()) as any[];
-      const qbitSchema = dlSchemas.find(s => s.implementation === 'QBittorrent');
-
-      if (qbitSchema) {
-        const qbitPayload = {
-          ...qbitSchema,
-          name: 'qBittorrent',
-          enable: true,
-          fields: qbitSchema.fields.map((f: any) => {
-            if (f.name === 'host') return { ...f, value: 'hostify-qbittorrent' };
-            if (f.name === 'port') return { ...f, value: 8080 };
-            return f;
-          })
-        };
-
-        const addQbitRes = await fetch(`${lidarrBase}/api/v1/downloadclient`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': lidarrApiKey,
-          },
-          body: JSON.stringify(qbitPayload),
-        });
-
-        if (addQbitRes.ok) {
-          console.log('[Hostify Provisioner] qBittorrent linked as download client in Lidarr.');
-        }
-      }
-    }
-
-    // 5. Ensure root folder /music exists in Lidarr
-    const rootRes = await fetch(`${lidarrBase}/api/v1/rootfolder`, {
-      headers: { 'X-Api-Key': lidarrApiKey }
-    });
-    const roots = (await rootRes.json()) as any[];
-    if (!roots.some(r => r.path === '/music')) {
-      await fetch(`${lidarrBase}/api/v1/rootfolder`, {
+      const apiBase = `${resolveServiceTarget('droppedneedle', 8688)}/tools/discover/api/v3`;
+      const loginRes = await fetch(`${apiBase}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': lidarrApiKey,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Music',
-          path: '/music',
-          defaultQualityProfileId: 1,
-          defaultMetadataProfileId: 1,
+          username: adminUser,
+          password: adminPass,
+          transport: 'cookie',
         }),
-      });
-      console.log('[Hostify Provisioner] Carpeta raíz /music configurada en Lidarr.');
+        signal: AbortSignal.timeout(4000),
+      }).catch(() => null);
+
+      if (!loginRes || !loginRes.ok) return null;
+
+      const setCookies: string[] = typeof (loginRes.headers as any).getSetCookie === 'function'
+        ? (loginRes.headers as any).getSetCookie()
+        : [loginRes.headers.get('set-cookie') || ''];
+
+      for (const raw of setCookies) {
+        const match = raw.match(/(?:^|,\s*)droppedneedle_sid=([^;]+)/i);
+        if (match && match[1]) {
+          cachedDnSession = { value: match[1], obtainedAt: Date.now() };
+          return match[1];
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      inFlightDnSession = null;
+    }
+  })();
+
+  return inFlightDnSession;
+}
+
+/**
+ * Auto-provision DroppedNeedle admin user, Slskd client, library roots, Navidrome & ListenBrainz
+ */
+export async function ensureDroppedNeedleSetup(retry = 0): Promise<DroppedNeedleSetupResult> {
+  const maxRetries = 12;
+  const apiBase = `${resolveServiceTarget('droppedneedle', 8688)}/tools/discover/api/v3`;
+
+  try {
+    const statusRes = await fetch(`${apiBase}/auth/setup/status`, {
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => null);
+
+    if (!statusRes || !statusRes.ok) {
+      if (retry < maxRetries) {
+        setTimeout(() => ensureDroppedNeedleSetup(retry + 1), 3000);
+      }
+      return { success: false, reason: 'unreachable' };
     }
 
-  } catch (err: any) {
-    console.warn('[Hostify Provisioner] Error en ensureProwlarrLidarrSetup:', err.message);
-    if (retry < maxRetries) {
-      setTimeout(() => ensureProwlarrLidarrSetup(dockerData, retry + 1), 4000);
+    const setupStatus = (await statusRes.json()) as { setup_required?: boolean; code_required?: boolean };
+    if (setupStatus.code_required) {
+      return { success: false, reason: 'code_required' };
     }
+
+    const env = parseEnv(ENV_FILE_PATH);
+    const adminUser = (env.NAVIDROME_ADMIN_USER || '').trim();
+    const adminPass = env.NAVIDROME_ADMIN_PASSWORD || '';
+    if (!adminUser || !adminPass) {
+      return { success: false, reason: 'missing_credentials' };
+    }
+
+    let token: string | null = null;
+
+    if (setupStatus.setup_required) {
+      if (adminUser.length < 3 || adminPass.length < 12) {
+        console.warn('[Hostify Provisioner] DroppedNeedle auto-admin skipped: password must be at least 12 characters (and username 3+ chars).');
+        return { success: false, reason: 'password_too_short' };
+      }
+
+      const setupRes = await fetch(`${apiBase}/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUser,
+          password: adminPass,
+          display_name: adminUser,
+          transport: 'bearer',
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!setupRes.ok) {
+        const errBody = await setupRes.text().catch(() => '');
+        console.warn(`[Hostify Provisioner] DroppedNeedle setup failed (${setupRes.status}): ${errBody}`);
+        return { success: false, reason: 'setup_failed' };
+      }
+
+      const setupData = (await setupRes.json()) as { token?: string };
+      token = setupData.token || null;
+      console.log(`[Hostify Provisioner] DroppedNeedle admin '${adminUser}' provisioned automatically.`);
+    } else {
+      const loginRes = await fetch(`${apiBase}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: adminUser,
+          password: adminPass,
+          transport: 'bearer',
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      if (!loginRes.ok) {
+        return { success: false, reason: 'login_failed' };
+      }
+
+      const loginData = (await loginRes.json()) as { token?: string };
+      token = loginData.token || null;
+    }
+
+    if (!token) {
+      return { success: false, reason: 'no_token' };
+    }
+
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+
+    // 1. Configure Slskd download client
+    try {
+      const dlRes = await fetch(`${apiBase}/settings/download-client/config`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (dlRes.ok) {
+        const dlCfg = (await dlRes.json()) as Record<string, any>;
+        const targetUrl = 'http://hostify-slskd:5030';
+        const targetKey = env.SLSKD_API_KEY || 'hostify_secret_key';
+        if (!dlCfg.enabled || dlCfg.url !== targetUrl) {
+          await fetch(`${apiBase}/settings/download-client/config`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              ...dlCfg,
+              enabled: true,
+              url: targetUrl,
+              api_key: targetKey,
+              downloads_subpath: dlCfg.downloads_subpath || 'slskd',
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle linked with Slskd successfully.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle Slskd config failed:', err?.message || err);
+    }
+
+    // 2. Configure Library roots (/data/discover & /data/personal)
+    try {
+      const libRes = await fetch(`${apiBase}/settings/library`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (libRes.ok) {
+        const libData = (await libRes.json()) as Record<string, any>;
+        if (!Array.isArray(libData.library_roots) || libData.library_roots.length === 0) {
+          await fetch(`${apiBase}/settings/library`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              expected_policy_revision: libData.policy_revision,
+              settings: {
+                enabled: libData.enabled ?? true,
+                acoustid_api_key: libData.acoustid_api_key || '',
+                staging_path: libData.staging_path || '',
+                naming_script: libData.naming_script,
+                library_roots: [
+                  { id: 'discover', label: 'DroppedNeedle Discover', path: '/data/discover', policy: 'automatic', rules: [] },
+                  { id: 'personal', label: 'Personal Collection', path: '/data/personal', policy: 'automatic', rules: [] },
+                ],
+              },
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle library roots (/data/discover, /data/personal) configured.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle library config failed:', err?.message || err);
+    }
+
+    // 3. Configure Navidrome integration
+    try {
+      const naviRes = await fetch(`${apiBase}/settings/navidrome`, {
+        headers: authHeaders,
+        signal: AbortSignal.timeout(4000),
+      });
+      if (naviRes.ok) {
+        const naviCfg = (await naviRes.json()) as Record<string, any>;
+        const targetNaviUrl = `http://hostify-navidrome:${env.NAVIDROME_PORT || 4533}`;
+        if (!naviCfg.enabled || naviCfg.navidrome_url !== targetNaviUrl || naviCfg.username !== adminUser) {
+          await fetch(`${apiBase}/settings/navidrome`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({
+              ...naviCfg,
+              enabled: true,
+              navidrome_url: targetNaviUrl,
+              username: adminUser,
+              password: adminPass,
+            }),
+            signal: AbortSignal.timeout(4000),
+          });
+          console.log('[Hostify Provisioner] DroppedNeedle linked with Navidrome successfully.');
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Hostify Provisioner] DroppedNeedle Navidrome config failed:', err?.message || err);
+    }
+
+    // 4. Configure ListenBrainz connection when token is present
+    const lzToken = (env.LZ_TOKEN || '').trim();
+    if (lzToken) {
+      try {
+        const existingConnRes = await fetch(`${apiBase}/me/connections`, {
+          headers: authHeaders,
+          signal: AbortSignal.timeout(4000),
+        }).catch(() => null);
+        const existingConnData = existingConnRes && existingConnRes.ok
+          ? ((await existingConnRes.json()) as { connections?: Array<{ service?: string; provider?: string }> })
+          : null;
+        const alreadyLinked = Boolean(
+          existingConnData?.connections?.some(c => (c.service || c.provider || '').toLowerCase() === 'listenbrainz')
+        );
+
+        if (!alreadyLinked) {
+          let lzUser = (env.LZ_USER || '').trim();
+          if (!lzUser) {
+            const valRes = await fetch('https://api.listenbrainz.org/1/validate-token', {
+              headers: { Authorization: `Token ${lzToken}` },
+              signal: AbortSignal.timeout(15000),
+            }).catch(() => null);
+            if (valRes && valRes.ok) {
+              const valData = (await valRes.json()) as { valid?: boolean; user_name?: string };
+              if (valData.valid && valData.user_name) {
+                lzUser = valData.user_name;
+                env.LZ_USER = lzUser;
+                writeEnv(ENV_FILE_PATH, env);
+              }
+            }
+          }
+
+          await fetch(`${apiBase}/settings/listenbrainz`, {
+            method: 'PUT',
+            headers: authHeaders,
+            body: JSON.stringify({ reads_enabled: true }),
+            signal: AbortSignal.timeout(4000),
+          });
+
+          if (lzUser) {
+            const linkRes = await fetch(`${apiBase}/me/connections/listenbrainz`, {
+              method: 'PUT',
+              headers: authHeaders,
+              body: JSON.stringify({ username: lzUser, user_token: lzToken }),
+              signal: AbortSignal.timeout(15000),
+            });
+            if (linkRes.ok) {
+              console.log(`[Hostify Provisioner] DroppedNeedle linked with ListenBrainz (${lzUser}).`);
+            } else {
+              const errText = await linkRes.text().catch(() => '');
+              console.warn(`[Hostify Provisioner] DroppedNeedle ListenBrainz link returned ${linkRes.status}: ${errText}`);
+            }
+          } else {
+            console.warn('[Hostify Provisioner] Could not resolve ListenBrainz username (api.listenbrainz.org timed out or rejected token).');
+          }
+        }
+      } catch (err: any) {
+        console.warn('[Hostify Provisioner] DroppedNeedle ListenBrainz config failed:', err?.message || err);
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[Hostify Provisioner] Error in ensureDroppedNeedleSetup:', err?.message || err);
+    if (retry < maxRetries) {
+      setTimeout(() => ensureDroppedNeedleSetup(retry + 1), 4000);
+    }
+    return { success: false, reason: 'exception' };
   }
 }

@@ -157,38 +157,16 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
   // Music sources
   const [modules, setModules] = useState<{
-    explo: boolean;
+    droppedneedle: boolean;
     slskd: boolean;
-    qbittorrent: boolean;
-    prowlarr: boolean;
-    lidarr: boolean;
   }>(() => {
-    const raw = draft?.modules ?? status?.modules ?? {
-      explo: true,
-      slskd: true,
-      qbittorrent: true,
-      prowlarr: true,
-      lidarr: true,
-    };
-    if (!raw.explo) {
-      return {
-        explo: false,
-        slskd: false,
-        qbittorrent: false,
-        prowlarr: false,
-        lidarr: false,
-      };
+    const raw = (draft?.modules ?? status?.modules) as Record<string, boolean> | null | undefined;
+    if (!raw) {
+      return { droppedneedle: true, slskd: true };
     }
-    if (!raw.slskd && !raw.lidarr) {
-      return {
-        explo: true,
-        slskd: true,
-        lidarr: true,
-        qbittorrent: true,
-        prowlarr: true,
-      };
-    }
-    return raw;
+    const droppedneedle = raw.droppedneedle ?? (raw.explo || raw.lidarr || true);
+    const slskd = raw.slskd ?? true;
+    return { droppedneedle: Boolean(droppedneedle), slskd: Boolean(slskd) };
   });
 
   // Remote access
@@ -325,11 +303,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
       setListenBrainzUser('');
       setListenBrainzToken('');
       setModules({
-        explo: true,
+        droppedneedle: true,
         slskd: true,
-        qbittorrent: true,
-        prowlarr: true,
-        lidarr: true,
       });
       setRemoteMode(status?.tailscaleDetected ? 'tailscale' : 'local');
       setDomain(status?.domain || '');
@@ -368,63 +343,23 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
 
   const toggleModule = (key: keyof typeof modules) => {
     setErrorMsg('');
-    if (key === 'explo') {
-      const nextExplo = !modules.explo;
-      if (!nextExplo) {
-        setModules({
-          explo: false,
-          slskd: false,
-          lidarr: false,
-          qbittorrent: false,
-          prowlarr: false,
-        });
-      } else {
-        setModules({
-          explo: true,
-          slskd: true,
-          lidarr: true,
-          qbittorrent: true,
-          prowlarr: true,
-        });
+    if (key === 'droppedneedle') {
+      const next = !modules.droppedneedle;
+      if (!next && !modules.slskd) {
+        setErrorMsg(isEn ? 'Keep at least one acquisition or discovery tool enabled.' : 'Es necesario mantener al menos una fuente de música activa.');
+        return;
       }
+      setModules(prev => ({ ...prev, droppedneedle: next }));
       return;
     }
 
     if (key === 'slskd') {
-      if (!modules.explo) {
-        setModules(prev => ({ ...prev, explo: true, slskd: true }));
+      const next = !modules.slskd;
+      if (!next && !modules.droppedneedle) {
+        setErrorMsg(isEn ? 'Keep at least one acquisition or discovery tool enabled.' : 'Es necesario mantener al menos una fuente de música activa.');
         return;
       }
-      if (modules.slskd && !modules.lidarr) {
-        setErrorMsg('Es necesario mantener al menos una fuente de música activa mientras el curador esté encendido.');
-        return;
-      }
-      setModules(prev => ({ ...prev, slskd: !prev.slskd }));
-      return;
-    }
-
-    if (key === 'lidarr' || key === 'qbittorrent' || key === 'prowlarr') {
-      if (!modules.explo) {
-        setModules(prev => ({
-          ...prev,
-          explo: true,
-          lidarr: true,
-          qbittorrent: true,
-          prowlarr: true,
-        }));
-        return;
-      }
-      if (modules.lidarr && !modules.slskd) {
-        setErrorMsg('Es necesario mantener al menos una fuente de música activa mientras el curador esté encendido.');
-        return;
-      }
-      const next = !modules.lidarr;
-      setModules(prev => ({
-        ...prev,
-        lidarr: next,
-        qbittorrent: next,
-        prowlarr: next,
-      }));
+      setModules(prev => ({ ...prev, slskd: next }));
       return;
     }
   };
@@ -493,12 +428,12 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     }
 
     if (currentStep === 3) {
-      if (!navidromeAdminUser.trim()) {
-        setErrorMsg('Por favor especifica un nombre de usuario administrador.');
+      if (navidromeAdminUser.trim().length < 3) {
+        setErrorMsg(isEn ? 'Admin username must be at least 3 characters.' : 'El usuario administrador debe tener al menos 3 caracteres.');
         return;
       }
-      if (!navidromeAdminPassword.trim()) {
-        setErrorMsg('Por favor especifica una contraseña.');
+      if (navidromeAdminPassword.trim().length < 12) {
+        setErrorMsg(isEn ? 'Password must be at least 12 characters so all services (including DroppedNeedle) can be auto-provisioned.' : 'La contraseña debe tener al menos 12 caracteres para auto-aprovisionar todos los servicios (incluido DroppedNeedle).');
         return;
       }
       if (enableListenBrainz && !listenBrainzToken.trim()) {
@@ -508,7 +443,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
     }
 
     if (currentStep === 4) {
-      if (!modules.explo && !modules.slskd && !modules.lidarr) {
+      if (!modules.droppedneedle && !modules.slskd) {
         setErrorMsg('Por favor selecciona al menos una fuente para poblar tu fonoteca.');
         return;
       }
@@ -862,9 +797,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               </p>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                 <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/personal</strong> • {isEn ? 'Manual uploads' : 'Subidas manuales'}</span>
-                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/explo</strong> • {isEn ? 'Curator' : 'Curador'}</span>
+                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/discover</strong> • DroppedNeedle</span>
                 <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/slskd</strong> • Soulseek</span>
-                <span className="breakdown-pill" style={{ fontSize: '0.72rem' }}><strong>/torrents</strong> • Torrents</span>
               </div>
             </div>
 
@@ -993,8 +927,11 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                   className="form-input"
                   value={navidromeAdminPassword}
                   onChange={e => setNavidromeAdminPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="••••••••••••"
                 />
+                <p className="input-hint" style={{ marginTop: '4px', fontSize: '0.72rem' }}>
+                  {isEn ? 'Minimum 12 characters (shared across Navidrome, Scrobbler & DroppedNeedle).' : 'Mínimo 12 caracteres (compartida con Navidrome, Scrobbler y DroppedNeedle).'}
+                </p>
               </div>
             </div>
 
@@ -1097,22 +1034,22 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
             </p>
 
             <div className="flat-list">
-              {/* Explo */}
+              {/* DroppedNeedle */}
               <div 
                 className="flat-row"
                 style={{ cursor: 'pointer' }}
-                onClick={() => toggleModule('explo')}
+                onClick={() => toggleModule('droppedneedle')}
               >
                 <div className="flat-row-info">
                   <Sparkles size={18} className="flat-icon" />
                   <div>
-                    <span className="flat-row-title">{t('step4ExploTitle')}</span>
-                    <p className="flat-row-desc">{t('step4ExploDesc')}</p>
+                    <span className="flat-row-title">{t('step4DiscoverTitle')}</span>
+                    <p className="flat-row-desc">{t('step4DiscoverDesc')}</p>
                   </div>
                 </div>
                 <input
                   type="checkbox"
-                  checked={modules.explo}
+                  checked={modules.droppedneedle}
                   onChange={() => { }}
                   style={{ accentColor: 'var(--accent-brass)', width: '16px', height: '16px', pointerEvents: 'none' }}
                 />
@@ -1121,8 +1058,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
               {/* Slskd */}
               <div 
                 className="flat-row"
-                style={{ cursor: modules.explo ? 'pointer' : 'not-allowed', opacity: modules.explo ? 1 : 0.4 }}
-                onClick={() => modules.explo && toggleModule('slskd')}
+                style={{ cursor: 'pointer' }}
+                onClick={() => toggleModule('slskd')}
               >
                 <div className="flat-row-info">
                   <Music size={18} className="flat-icon" />
@@ -1133,30 +1070,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 </div>
                 <input
                   type="checkbox"
-                  checked={modules.explo && modules.slskd}
-                  disabled={!modules.explo}
-                  onChange={() => { }}
-                  style={{ accentColor: 'var(--accent-brass)', width: '16px', height: '16px', pointerEvents: 'none' }}
-                />
-              </div>
-
-              {/* Lidarr */}
-              <div 
-                className="flat-row"
-                style={{ cursor: modules.explo ? 'pointer' : 'not-allowed', opacity: modules.explo ? 1 : 0.4 }}
-                onClick={() => modules.explo && toggleModule('lidarr')}
-              >
-                <div className="flat-row-info">
-                  <Disc3 size={18} className="flat-icon" />
-                  <div>
-                    <span className="flat-row-title">{t('step4LidarrTitle')}</span>
-                    <p className="flat-row-desc">{t('step4LidarrDesc')}</p>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={modules.explo && modules.lidarr}
-                  disabled={!modules.explo}
+                  checked={modules.slskd}
                   onChange={() => { }}
                   style={{ accentColor: 'var(--accent-brass)', width: '16px', height: '16px', pointerEvents: 'none' }}
                 />
@@ -1258,9 +1172,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ status, onComplete, on
                 <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('step6SummarySources')}</span>
                 <span style={{ fontSize: '0.82rem', fontWeight: '500' }}>
                   {[
-                    modules.explo && 'Curador Explo',
+                    modules.droppedneedle && 'DroppedNeedle',
                     modules.slskd && 'Soulseek',
-                    modules.lidarr && 'Lidarr Suite',
                   ].filter(Boolean).join(' • ') || t('step6OnlyManual')}
                 </span>
               </div>

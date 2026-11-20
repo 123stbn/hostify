@@ -8,16 +8,13 @@ import {
   slskdProxyMiddleware,
   slskdApiProxyMiddleware,
   slskdHubProxyMiddleware,
-  exploProxyMiddleware,
-  exploApiProxyMiddleware,
-  qbittorrentProxyMiddleware,
-  prowlarrProxyMiddleware,
-  lidarrProxyMiddleware,
+  droppedneedleAutoAuthMiddleware,
+  droppedneedleProxyMiddleware,
   scrobblerProxyMiddleware,
   beetsProxyMiddleware
 } from './routes/proxy.routes.js';
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv } from './utils/env.js';
-import { autoConfigureIngestionServices, ensureProwlarrLidarrSetup } from './services/provisioner.service.js';
+import { autoConfigureIngestionServices, ensureDroppedNeedleSetup } from './services/provisioner.service.js';
 import { ensureNavidromeAdmin, previousNavidromeCandidates } from './services/subsonic.service.js';
 import { joinHostifyNetwork } from './services/compose.service.js';
 
@@ -41,10 +38,7 @@ const TOOL_SUBPATHS = [
   '/tools/scrobbler',
   '/tools/beets',
   '/tools/slskd',
-  '/tools/explo',
-  '/tools/qbittorrent',
-  '/tools/prowlarr',
-  '/tools/lidarr',
+  '/tools/discover',
   '/feishin',
   '/app'
 ];
@@ -63,11 +57,8 @@ app.use(feishinProxyMiddleware);
 app.use(slskdProxyMiddleware);
 app.use(slskdApiProxyMiddleware);
 app.use(slskdHubProxyMiddleware);
-app.use(exploProxyMiddleware);
-app.use(exploApiProxyMiddleware);
-app.use(qbittorrentProxyMiddleware);
-app.use(prowlarrProxyMiddleware);
-app.use(lidarrProxyMiddleware);
+app.use(droppedneedleAutoAuthMiddleware);
+app.use(droppedneedleProxyMiddleware);
 app.use(scrobblerProxyMiddleware);
 app.use(beetsProxyMiddleware);
 
@@ -130,7 +121,7 @@ async function startServer() {
   const startupEnv = parseEnv(ENV_FILE_PATH);
   if (startupEnv.DOCKER_DATA && startupEnv.MUSIC_ROOT) {
     autoConfigureIngestionServices(startupEnv.DOCKER_DATA, startupEnv.MUSIC_ROOT, startupEnv);
-    ensureProwlarrLidarrSetup(startupEnv.DOCKER_DATA, 0);
+    ensureDroppedNeedleSetup(0).catch(() => {});
   }
 
   // Align Navidrome admin credentials on startup if configured

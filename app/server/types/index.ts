@@ -40,10 +40,11 @@ export interface StorageStatus {
   totalSizeHuman: string;
   folders: {
     personal: StorageFolder;
-    explo: StorageFolder;
+    discover: StorageFolder;
     slskd: StorageFolder;
-    torrents: StorageFolder;
     music: StorageFolder;
+    explo?: StorageFolder;
+    torrents?: StorageFolder;
   };
 }
 

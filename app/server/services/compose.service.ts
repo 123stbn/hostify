@@ -4,7 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { DeploymentState } from '../types/index.js';
 import { PROJECT_DIR, ENV_FILE_PATH, CONFIG_FLAG_PATH, parseEnv, writeEnv } from '../utils/env.js';
 import { dockerClient } from './docker.service.js';
-import { ensureProwlarrLidarrSetup } from './provisioner.service.js';
+import { ensureDroppedNeedleSetup } from './provisioner.service.js';
 import { ensureNavidromeAdmin, triggerNavidromeScan, NavidromeCredentials } from './subsonic.service.js';
 
 let deploymentState: DeploymentState = {
@@ -122,79 +122,15 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
       const cfg = JSON.parse(fs.readFileSync(CONFIG_FLAG_PATH, 'utf-8'));
       if (cfg.modules) {
         modulesActive = cfg.modules;
-        if (cfg.modules.explo) selectedServices.push('explo');
+        if (cfg.modules.droppedneedle || cfg.modules.explo || cfg.modules.lidarr) {
+          selectedServices.push('droppedneedle');
+        }
         if (cfg.modules.slskd) selectedServices.push('slskd');
-        if (cfg.modules.qbittorrent) selectedServices.push('qbittorrent');
-        if (cfg.modules.prowlarr) selectedServices.push('prowlarr');
-        if (cfg.modules.lidarr) selectedServices.push('lidarr');
       }
     } catch {}
   } else {
-    selectedServices.push('explo', 'slskd', 'qbittorrent', 'prowlarr', 'lidarr');
-    modulesActive = { explo: true, slskd: true, qbittorrent: true, prowlarr: true, lidarr: true };
-  }
-
-  // Pre-configure Explo (.env and config) to automatically bypass its setup wizard
-  if (modulesActive.explo) {
-    try {
-      const env = parseEnv(ENV_FILE_PATH);
-      const dockerData = env.DOCKER_DATA || '/volume1/docker';
-      const exploConfigDir = path.join(dockerData, 'explo', 'config');
-      if (!fs.existsSync(exploConfigDir)) {
-        fs.mkdirSync(exploConfigDir, { recursive: true });
-      }
-
-      let lidarrApiKey = '';
-      const lidarrXmlPath = path.join(dockerData, 'lidarr', 'config.xml');
-      if (fs.existsSync(lidarrXmlPath)) {
-        try {
-          const xml = fs.readFileSync(lidarrXmlPath, 'utf-8');
-          const m = xml.match(/<ApiKey>(.*?)<\/ApiKey>/i);
-          if (m && m[1]) lidarrApiKey = m[1];
-        } catch {}
-      }
-
-      const downloadServicesList: string[] = [];
-      if (modulesActive.slskd) downloadServicesList.push('slskd');
-      if (modulesActive.lidarr) downloadServicesList.push('lidarr');
-
-      const exploEnvContent = [
-        `WIZARD_COMPLETE=true`,
-        `WEB_UI=true`,
-        `DISCOVERY_SERVICE=listenbrainz`,
-        `LISTENBRAINZ_USER=${env.LZ_USER || ''}`,
-        `LISTENBRAINZ_USER_TOKEN=${env.LZ_TOKEN || ''}`,
-        `LISTENBRAINZ_DISCOVERY=playlist`,
-        `ENRICH_TRACK_METADATA=true`,
-        `EXPLO_SYSTEM=subsonic`,
-        `SYSTEM_URL=http://hostify-navidrome:${env.NAVIDROME_PORT || 4533}`,
-        `SYSTEM_USERNAME=${env.NAVIDROME_ADMIN_USER || ''}`,
-        `SYSTEM_PASSWORD=${env.NAVIDROME_ADMIN_PASSWORD || ''}`,
-        `DOWNLOAD_SERVICES=${downloadServicesList.join(',')}`,
-        `SLSKD_URL=http://hostify-slskd:5030`,
-        `SLSKD_API_KEY=${env.SLSKD_API_KEY || ''}`,
-        `LIDARR_URL=http://hostify-lidarr:8686`,
-        `LIDARR_API_KEY=${lidarrApiKey}`,
-        `DOWNLOAD_DIR=/data/`,
-        `USE_SUBDIRECTORY=true`,
-        `SINGLE_ARTIST=true`,
-        `PLAYLISTNAME_FORMAT=week`,
-        `LOG_LEVEL=INFO`,
-        `WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2`,
-        `WEEKLY_EXPLORATION_FLAGS=--playlist weekly-exploration`,
-        `WEEKLY_JAMS_SCHEDULE=30 00 * * 1`,
-        `WEEKLY_JAMS_FLAGS=--playlist weekly-jams`,
-        `DAILY_JAMS_SCHEDULE=15 01 * * *`,
-        `DAILY_JAMS_FLAGS=--playlist daily-jams`,
-        `ON_REPEAT_SCHEDULE=00 12 1 * *`,
-        `ON_REPEAT_FLAGS=--playlist on-repeat`,
-        ``
-      ].join('\n');
-
-      fs.writeFileSync(path.join(exploConfigDir, '.env'), exploEnvContent, 'utf-8');
-    } catch (err: any) {
-      console.warn('Error pre-configurando Explo:', err.message);
-    }
+    selectedServices.push('droppedneedle', 'slskd');
+    modulesActive = { droppedneedle: true, slskd: true };
   }
 
   deploymentState = {
@@ -264,9 +200,8 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
         deploymentState.finishedAt = new Date().toISOString();
         deploymentState.logs.push(`[${new Date().toLocaleTimeString()}] ✅ ¡Despliegue completado con éxito! Todos los servicios están activos.`);
 
-        const env = parseEnv(ENV_FILE_PATH);
-        const dockerData = env.DOCKER_DATA || '/volume1/docker';
-        ensureProwlarrLidarrSetup(dockerData, 0);
+        // Provision DroppedNeedle admin, Slskd, Library, Navidrome & ListenBrainz
+        ensureDroppedNeedleSetup(0).catch(() => {});
         // Align Navidrome's admin account with the credentials chosen in the wizard
         ensureNavidromeAdmin(previousNavidromeCreds).catch((err) => {
           console.warn('[Hostify Navidrome] Admin sync failed:', err?.message || err);
