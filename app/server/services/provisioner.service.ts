@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PROJECT_DIR, ENV_FILE_PATH, parseEnv, writeEnv } from '../utils/env.js';
 import { resolveServiceTarget } from '../routes/proxy.routes.js';
+import { resolveEffectiveMusicDir } from './storage.service.js';
 
 /**
  * Provision directories and Zero-Config templates for DroppedNeedle, Feishin, Beets, and Multi-Scrobbler
@@ -15,10 +16,7 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
         try { fs.mkdirSync(dnDir, { recursive: true }); } catch {}
       }
     }
-    const inContainer = fs.existsSync('/.dockerenv') || process.env.CONTAINER === 'true';
-    const effectiveMusicRoot = (!fs.existsSync(musicRoot) && inContainer && fs.existsSync('/music'))
-      ? '/music'
-      : musicRoot;
+    const effectiveMusicRoot = resolveEffectiveMusicDir(musicRoot);
     for (const sub of ['personal', 'discover', 'slskd']) {
       const subDir = path.join(effectiveMusicRoot, sub);
       if (!fs.existsSync(subDir)) {

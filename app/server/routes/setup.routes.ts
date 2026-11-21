@@ -13,6 +13,7 @@ import {
 import { dockerClient } from '../services/docker.service.js';
 import { generateProxySnippets } from '../services/network.service.js';
 import { autoConfigureIngestionServices, ensureDroppedNeedleSetup } from '../services/provisioner.service.js';
+import { resolveEffectiveMusicDir } from '../services/storage.service.js';
 import { triggerDeploy } from '../services/compose.service.js';
 import { previousNavidromeCandidates } from '../services/subsonic.service.js';
 
@@ -89,9 +90,7 @@ setupRouter.post('/setup', async (req: Request, res: Response) => {
     // 1. Create required subfolders (best-effort: path may be read-only inside the
     //    container if it lives under HOST_HOME which is mounted :ro for browsing).
     //    The subdirs will also be created by the ingestion containers on first start.
-    const targetMusic = fs.existsSync(envData.MUSIC_ROOT)
-      ? envData.MUSIC_ROOT
-      : (fs.existsSync('/music') ? '/music' : envData.MUSIC_ROOT);
+    const targetMusic = resolveEffectiveMusicDir(envData.MUSIC_ROOT);
     const subdirs = ['personal', 'discover', 'slskd'];
     for (const sub of subdirs) {
       const p = path.join(targetMusic, sub);

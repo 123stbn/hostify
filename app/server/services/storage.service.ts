@@ -85,14 +85,23 @@ export function cleanupSlskdLeftoverFolders(musicDir: string, minAgeMs = 10 * 60
 }
 
 /**
+ * Resolve the actual music directory path (preferring the /music mount when running inside Docker)
+ */
+export function resolveEffectiveMusicDir(musicRoot: string): string {
+  const inContainer = fs.existsSync('/.dockerenv') || process.env.CONTAINER === 'true';
+  if (inContainer && fs.existsSync('/music')) {
+    return '/music';
+  }
+  return musicRoot;
+}
+
+/**
  * Inspección del almacenamiento de música
  */
 export async function getStorageStatus() {
   const env = parseEnv(ENV_FILE_PATH);
   const musicRoot = env.MUSIC_ROOT || '/volume1/music';
-  const effectiveMusicDir = fs.existsSync(musicRoot)
-    ? musicRoot
-    : (fs.existsSync('/music') ? '/music' : musicRoot);
+  const effectiveMusicDir = resolveEffectiveMusicDir(musicRoot);
 
   // Clean up residual cover-only folders in slskd staging older than 10 minutes
   cleanupSlskdLeftoverFolders(effectiveMusicDir);
