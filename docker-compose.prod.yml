@@ -23,6 +23,7 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-10}
       - TZ=${TZ:-America/Lima}
+      - ENABLE_AVAHI=${ENABLE_AVAHI:-false}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # Stores the wizard-generated .env file and stack configurations

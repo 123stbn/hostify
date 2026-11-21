@@ -99,6 +99,7 @@ services:
       - PGID=10
       - TZ=America/Lima
       - HOST_HOSTNAME=hostify
+      - ENABLE_AVAHI=false
     volumes:
       # Required: Grants Hostify access to orchestrate Navidrome, Feishin, Slskd, Beets, etc.
       - /var/run/docker.sock:/var/run/docker.sock
@@ -108,40 +109,19 @@ services:
       - /volume1/music:/music
       # Data directory for satellite downloaders, databases, and caches
       - /volume1/docker/hostify:/volume1/docker/hostify
-
-  # Optional mDNS broadcaster sidecar (only needed if host lacks native Avahi/Bonjour)
-  # Default: Ignored to prevent port 5353 collisions with native NAS/Linux daemons.
-  avahi:
-    image: flungo/avahi:latest
-    container_name: hostify-avahi
-    restart: unless-stopped
-    network_mode: host
-    profiles:
-      - mdns
-      - optional
-    environment:
-      SERVER_HOST_NAME: hostify
-      SERVER_DOMAIN_NAME: local
-      SERVER_USE_IPV4: "yes"
-      SERVER_USE_IPV6: "no"
-      SERVER_ENABLE_DBUS: "no"
-      SERVER_ALLOW_INTERFACES: ""
-      SERVER_DENY_INTERFACES: "docker0,lo"
-      SERVER_DISALLOW_OTHER_STACKS: "no"
-      SERVER_CHECK_RESPONSE_TTL: "no"
-      PUBLISH_PUBLISH_WORKSTATION: "no"
 ```
 
 > **Note on Storage Paths & Network Discovery:**
 > - Replace `/volume1/docker/hostify` and `/volume1/music` with your NAS or server's actual storage share paths.
-> - **Native NAS mDNS:** Most NAS (Synology, QNAP, TrueNAS, Ubuntu) broadcast their own hostname by default: **`http://<YOUR-NAS-HOSTNAME>.local:3500`** or **`http://<NAS-IP>:3500`**.
+> - **Native NAS mDNS:** Most NAS (Synology, UGREEN, QNAP, TrueNAS, Ubuntu) already run `avahi-daemon` natively and broadcast their own hostname: **`http://<YOUR-NAS-HOSTNAME>.local:3500`** or **`http://<NAS-IP>:3500`**. Do **not** run a second Avahi container on those hosts, or it will collide on UDP port `5353` with native `.local` / AirPrint (`cupsd`) services.
 > - **To enable `http://hostify.local:3500` via your NAS native Avahi (Recommended):**
->   Run these two quick commands in your NAS terminal:
+>   Run these commands in your NAS terminal (excluding Docker bridge interfaces so `hostify.local` resolves to your LAN IP, not `172.x`):
 >   ```bash
 >   echo "<YOUR-NAS-IP> hostify.local" | sudo tee -a /etc/avahi/hosts
+>   sudo sed -i 's/^#*deny-interfaces=.*/deny-interfaces=docker0,br-*,veth*/' /etc/avahi/avahi-daemon.conf
 >   sudo systemctl restart avahi-daemon
 >   ```
-> - **Containerized Avahi (`hostify-avahi`):** If your host operating system does not have `avahi-daemon` installed at all, you can enable the optional container by adding `COMPOSE_PROFILES=mdns` to your environment.
+> - **Containerized Avahi (`hostify-avahi`):** Only needed on minimal Linux servers without `avahi-daemon`. In [docker-compose.prod.yml](file:///Users/123stbn/Repos_Stbn/hostify/docker-compose.prod.yml), set `ENABLE_AVAHI=true` and `COMPOSE_PROFILES=mdns`.
 
 ---
 
