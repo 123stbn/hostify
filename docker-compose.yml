@@ -63,6 +63,8 @@ services:
     container_name: hostify-avahi
     restart: unless-stopped
     network_mode: host
+    profiles:
+      - mdns
     environment:
       # Hostname announced on the LAN: hostify.local (or ${HOST_HOSTNAME}.local)
       - SERVER_HOST_NAME=${HOST_HOSTNAME:-hostify}

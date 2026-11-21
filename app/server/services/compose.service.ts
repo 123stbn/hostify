@@ -111,9 +111,10 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
   // Read active modules configuration
   let selectedServices = ['navidrome', 'feishin', 'multi-scrobbler', 'beets'];
 
-  // Only deploy avahi sidecar if not disabled (e.g. host has native avahi-daemon or macOS Bonjour)
+  // Only deploy avahi sidecar when explicitly enabled (e.g. headless Linux without native avahi-daemon)
   const env = parseEnv(ENV_FILE_PATH);
-  if (env.ENABLE_AVAHI !== 'false' && process.env.ENABLE_AVAHI !== 'false') {
+  const enableAvahi = env.ENABLE_AVAHI === 'true' || process.env.ENABLE_AVAHI === 'true';
+  if (enableAvahi) {
     selectedServices.push('avahi');
   }
   let modulesActive: Record<string, boolean> = {};
@@ -162,6 +163,10 @@ export function triggerDeploy(previousNavidromeCreds: NavidromeCredentials[] = [
     const overridePath = path.join(PROJECT_DIR, 'docker-compose.override.yml');
     if (fs.existsSync(overridePath)) {
       cmdArgs.push('-f', overridePath);
+    }
+
+    if (enableAvahi) {
+      cmdArgs.push('--profile', 'mdns');
     }
 
     cmdArgs.push(
