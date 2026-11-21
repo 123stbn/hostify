@@ -26,30 +26,29 @@ export function autoConfigureIngestionServices(dockerData: string, musicRoot: st
         try { fs.chmodSync(subDir, 0o777); } catch {}
       }
       if (sub === 'slskd') {
-        // Keep raw Soulseek staging downloads out of Navidrome until DroppedNeedle imports them into /discover
+        // Ensure manual slskd downloads remain visible in Navidrome (remove .ndignore if created previously)
         const ndignorePath = path.join(subDir, '.ndignore');
-        if (!fs.existsSync(ndignorePath)) {
-          try { fs.writeFileSync(ndignorePath, '', 'utf-8'); } catch {}
+        if (fs.existsSync(ndignorePath)) {
+          try { fs.unlinkSync(ndignorePath); } catch {}
         }
       }
     }
 
-    // Ignore NAS recycle bins, metadata directories, and raw slskd staging at music root
+    // Ignore NAS recycle bins and system metadata at music root (keep /slskd scanned for manual downloads)
     const rootNdignorePath = path.join(effectiveMusicRoot, '.ndignore');
     const rootNdignoreContent = [
-      '# Ignore NAS recycle bins, system metadata, and raw staging folders',
+      '# Ignore NAS recycle bins and system metadata directories',
       '\\#recycle/',
       '.recycle/',
       '@Recycle/',
       '.Recycle.Bin/',
       '@eaDir/',
       '.Trash*/',
-      'slskd/',
       '',
     ].join('\n');
     try {
       const existing = fs.existsSync(rootNdignorePath) ? fs.readFileSync(rootNdignorePath, 'utf-8') : '';
-      if (!existing.includes('\\#recycle/')) {
+      if (!existing.includes('\\#recycle/') || existing.includes('slskd/')) {
         fs.writeFileSync(rootNdignorePath, rootNdignoreContent, 'utf-8');
       }
     } catch {}
